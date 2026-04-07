@@ -35,6 +35,40 @@ jobs:
             "build-tools;36.1.0" \
             "ndk;27.3.13750724"
 
+      - name: Install ccache
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ccache
+          ccache --version
+
+      - name: Cache ccache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ${{ runner.os }}-ccache-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/build.gradle', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-
+
+      - name: Cache native intermediates
+        uses: actions/cache@v4
+        with:
+          path: |
+            TMessagesProj/.cxx
+            TMessagesProj_App/.cxx
+          key: ${{ runner.os }}-native-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/build.gradle', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-native-
+
+      - name: Configure ccache
+        run: |
+          mkdir -p ~/.ccache
+          {
+            echo "max_size = 2.0G"
+            echo "compression = true"
+            echo "compiler_check = content"
+          } > ~/.ccache/ccache.conf
+          ccache -z
+
       - name: Restore keystore
         run: |
           echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > release.keystore
@@ -73,9 +107,24 @@ jobs:
           EOF
 
       - name: Restore google-services.json
+        shell: bash
         run: |
           mkdir -p TMessagesProj_App
           echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 -d > TMessagesProj_App/google-services.json
+
+      - name: Validate google-services.json
+        shell: bash
+        run: |
+          test -s TMessagesProj_App/google-services.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path("TMessagesProj_App/google-services.json")
+          with p.open("r", encoding="utf-8") as f:
+              data = json.load(f)
+          print("google-services.json OK")
+          print("top-level keys:", list(data.keys()))
+          PY
 
       - name: Generate Extra.java from template
         run: |
@@ -144,6 +193,10 @@ jobs:
 
       - name: Build release APK
         run: ./gradlew assembleRelease --stacktrace --no-daemon
+
+      - name: Show ccache stats
+        if: always()
+        run: ccache -s
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
