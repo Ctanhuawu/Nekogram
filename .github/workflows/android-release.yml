@@ -48,7 +48,17 @@ jobs:
           keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
-
+          
+      - name: Create gradle.properties for CI
+        run: |
+          cat > gradle.properties <<EOF
+          org.gradle.daemon=false
+          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+          kotlin.daemon.jvm.options=-Xmx2g
+          org.gradle.parallel=false
+          org.gradle.workers.max=2
+          EOF
+    
       - name: Restore google-services.json
         run: |
           mkdir -p TMessagesProj
@@ -63,7 +73,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build release APK
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
