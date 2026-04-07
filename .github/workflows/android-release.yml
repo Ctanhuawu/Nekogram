@@ -70,8 +70,9 @@ jobs:
           ccache -z
 
       - name: Restore keystore
+        shell: bash
         run: |
-          echo "${{ secrets.RELEASE_KEYSTORE_B64 }}" | base64 -d > release.keystore
+          printf '%s' '${{ secrets.RELEASE_KEYSTORE_B64 }}' | base64 -d > release.keystore
 
       - name: Create local.properties
         run: |
@@ -106,22 +107,47 @@ jobs:
           APP_PACKAGE=tw.nekomimi.nekogram
           EOF
 
+      - name: Debug GOOGLE_SERVICES_JSON_B64
+        shell: bash
+        run: |
+          SECRET='${{ secrets.GOOGLE_SERVICES_JSON_B64 }}'
+
+          echo "masked direct echo:"
+          echo "$SECRET"
+
+          echo "length:"
+          printf '%s' "$SECRET" | wc -c
+
+          echo "prefix:"
+          printf '%s' "$SECRET" | cut -c 1-80
+
+          echo "sha256:"
+          printf '%s' "$SECRET" | sha256sum
+
       - name: Restore google-services.json
         shell: bash
         run: |
           mkdir -p TMessagesProj_App
-          echo "${{ secrets.GOOGLE_SERVICES_JSON_B64 }}" | base64 -d > TMessagesProj_App/google-services.json
+          printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON_B64 }}' | base64 -d > TMessagesProj_App/google-services.json
 
       - name: Validate google-services.json
         shell: bash
         run: |
           test -s TMessagesProj_App/google-services.json
+
+          echo "decoded file size:"
+          wc -c TMessagesProj_App/google-services.json
+
+          echo "decoded first 5 lines:"
+          sed -n '1,5p' TMessagesProj_App/google-services.json
+
           python3 - <<'PY'
           import json
           from pathlib import Path
+
           p = Path("TMessagesProj_App/google-services.json")
-          with p.open("r", encoding="utf-8") as f:
-              data = json.load(f)
+          text = p.read_text(encoding="utf-8")
+          data = json.loads(text)
           print("google-services.json OK")
           print("top-level keys:", list(data.keys()))
           PY
