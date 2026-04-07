@@ -50,17 +50,26 @@ jobs:
           EOF
 
       - name: Create gradle.properties for CI
+        shell: bash
         run: |
+          VERSION_NAME="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION_NAME" ] || [ "$VERSION_NAME" = "$GITHUB_REF_NAME" ]; then
+            VERSION_NAME="dev"
+          fi
+          VERSION_CODE="$(date +%s)"
+
           cat > gradle.properties <<EOF
           org.gradle.daemon=false
           org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
           kotlin.daemon.jvm.options=-Xmx2g
           org.gradle.parallel=false
           org.gradle.workers.max=2
-          APP_VERSION_CODE=1
-          APP_VERSION_NAME=dev
-          TG_APP_VERSION_CODE=1
-          TG_APP_VERSION_NAME=dev
+
+          APP_VERSION_CODE=${VERSION_CODE}
+          APP_VERSION_NAME=${VERSION_NAME}
+          TG_APP_VERSION_CODE=${VERSION_CODE}
+          TG_APP_VERSION_NAME=${VERSION_NAME}
+          APP_PACKAGE=tw.nekomimi.nekogram
           EOF
 
       - name: Restore google-services.json
@@ -79,17 +88,56 @@ jobs:
           python3 - <<'PY'
           from pathlib import Path
 
-          p = Path("TMessagesProj/build.gradle")
-          s = p.read_text(encoding="utf-8")
+          def patch_file(path_str, replacements):
+              p = Path(path_str)
+              if not p.exists():
+                  print(f"Skip missing file: {p}")
+                  return
+              s = p.read_text(encoding="utf-8")
+              original = s
+              for old, new in replacements:
+                  s = s.replace(old, new)
+              if s != original:
+                  p.write_text(s, encoding="utf-8")
+                  print(f"Patched {p}")
+              else:
+                  print(f"No changes in {p}")
 
-          s = s.replace('${APP_VERSION_CODE}', '${project.findProperty("APP_VERSION_CODE") ?: "1"}L')
-          s = s.replace('${APP_VERSION_NAME}', '${project.findProperty("APP_VERSION_NAME") ?: "dev"}')
-          s = s.replace('${TG_APP_VERSION_CODE}', '${project.findProperty("TG_APP_VERSION_CODE") ?: "1"}L')
-          s = s.replace('${TG_APP_VERSION_NAME}', '${project.findProperty("TG_APP_VERSION_NAME") ?: "dev"}')
+          patch_file(
+              "TMessagesProj/build.gradle",
+              [
+                  ('${APP_VERSION_CODE}', '${project.findProperty("APP_VERSION_CODE") ?: "1"}L'),
+                  ('${APP_VERSION_NAME}', '${project.findProperty("APP_VERSION_NAME") ?: "dev"}'),
+                  ('${TG_APP_VERSION_CODE}', '${project.findProperty("TG_APP_VERSION_CODE") ?: "1"}L'),
+                  ('${TG_APP_VERSION_NAME}', '${project.findProperty("TG_APP_VERSION_NAME") ?: "dev"}'),
+              ]
+          )
 
-          p.write_text(s, encoding="utf-8")
-          print("Patched", p)
+          patch_file(
+              "TMessagesProj_App/build.gradle",
+              [
+                  (
+                      'defaultConfig.applicationId = APP_PACKAGE',
+                      'defaultConfig.applicationId = (project.findProperty("APP_PACKAGE") ?: "tw.nekomimi.nekogram")'
+                  ),
+                  (
+                      'defaultConfig.versionCode = Integer.parseInt(APP_VERSION_CODE)',
+                      'defaultConfig.versionCode = Integer.parseInt((project.findProperty("APP_VERSION_CODE") ?: "1").toString())'
+                  ),
+                  (
+                      'versionName APP_VERSION_NAME',
+                      'versionName (project.findProperty("APP_VERSION_NAME") ?: "dev").toString()'
+                  ),
+              ]
+          )
           PY
+
+      - name: Show patched Gradle files
+        run: |
+          echo "===== TMessagesProj/build.gradle ====="
+          sed -n '90,120p' TMessagesProj/build.gradle || true
+          echo "===== TMessagesProj_App/build.gradle ====="
+          sed -n '1,90p' TMessagesProj_App/build.gradle || true
 
       - name: Grant gradlew permission
         run: chmod +x ./gradlew
