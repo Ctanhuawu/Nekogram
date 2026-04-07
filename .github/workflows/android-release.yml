@@ -74,8 +74,10 @@ jobs:
         shell: bash
         run: |
           printf '%s' '${{ secrets.RELEASE_KEYSTORE_B64 }}' | base64 -d > release.keystore
+          ls -l release.keystore
 
       - name: Create local.properties
+        shell: bash
         run: |
           cat > local.properties <<EOF
           sdk.dir=$ANDROID_SDK_ROOT
@@ -84,6 +86,12 @@ jobs:
           keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
+
+          echo "===== local.properties ====="
+          sed \
+            -e 's/storePassword=.*/storePassword=***/' \
+            -e 's/keyPassword=.*/keyPassword=***/' \
+            local.properties
 
       - name: Create gradle.properties for CI
         shell: bash
@@ -108,6 +116,9 @@ jobs:
           APP_PACKAGE=tw.nekomimi.nekogram
           EOF
 
+          echo "===== gradle.properties ====="
+          sed -n '1,20p' gradle.properties
+
       - name: Debug GOOGLE_SERVICES_JSON_B64
         shell: bash
         run: |
@@ -130,24 +141,36 @@ jobs:
         run: |
           mkdir -p TMessagesProj_App
           printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON_B64 }}' | base64 -d > TMessagesProj_App/google-services.json
+          ls -l TMessagesProj_App/google-services.json
+          wc -c TMessagesProj_App/google-services.json
 
       - name: Validate google-services.json
         shell: bash
         run: |
-          test -s TMessagesProj_App/google-services.json
+          echo "===== file exists ====="
+          if [ -f TMessagesProj_App/google-services.json ]; then
+            echo "exists=yes"
+          else
+            echo "exists=no"
+            exit 1
+          fi
 
-          echo "decoded file size:"
+          echo "===== file size ====="
+          ls -l TMessagesProj_App/google-services.json
           wc -c TMessagesProj_App/google-services.json
 
-          echo "decoded first 5 lines:"
-          sed -n '1,5p' TMessagesProj_App/google-services.json
+          echo "===== first 5 lines ====="
+          sed -n '1,5p' TMessagesProj_App/google-services.json || true
 
           python3 - <<'PY'
           import json
           from pathlib import Path
 
           p = Path("TMessagesProj_App/google-services.json")
-          text = p.read_text(encoding="utf-8")
+          raw = p.read_bytes()
+          print("byte_length:", len(raw))
+
+          text = raw.decode("utf-8")
           data = json.loads(text)
           print("google-services.json OK")
           print("top-level keys:", list(data.keys()))
@@ -204,6 +227,14 @@ jobs:
                       'versionName APP_VERSION_NAME',
                       'versionName (project.findProperty("APP_VERSION_NAME") ?: "dev").toString()'
                   ),
+                  (
+                      'uploadNativeSymbols = true',
+                      'uploadNativeSymbols = false'
+                  ),
+                  (
+                      'includeSourceContext = true',
+                      'includeSourceContext = false'
+                  ),
               ]
           )
           PY
@@ -219,7 +250,11 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build release APK
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        run: |
+          ./gradlew assembleRelease --stacktrace --no-daemon \
+            -x sentryBundleSourcesRelease \
+            -x uploadSentryProguardMappingsRelease \
+            -x uploadSentryNativeSymbolsForRelease
 
       - name: Show ccache stats
         if: always()
