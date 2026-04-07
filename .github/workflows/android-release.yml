@@ -252,9 +252,9 @@ jobs:
       - name: Build release APK
         run: |
           ./gradlew assembleRelease --stacktrace --no-daemon \
-            -x sentryBundleSourcesRelease \
-            -x uploadSentryProguardMappingsRelease \
-            -x uploadSentryNativeSymbolsForRelease
+            -x :TMessagesProj_App:sentryBundleSourcesRelease \
+            -x :TMessagesProj_App:uploadSentryProguardMappingsRelease \
+            -x :TMessagesProj_App:uploadSentryNativeSymbolsForRelease
 
       - name: Show ccache stats
         if: always()
