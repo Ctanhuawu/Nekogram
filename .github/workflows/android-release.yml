@@ -9,10 +9,19 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-release:
     runs-on: ubuntu-latest
-    environment: Release
+    timeout-minutes: 90
+
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
 
     steps:
       - name: Checkout
@@ -32,9 +41,11 @@ jobs:
         run: |
           yes | sdkmanager --licenses
           sdkmanager \
+            "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.1.0" \
-            "ndk;27.3.13750724"
+            "ndk;27.3.13750724" \
+            "cmake;4.0.0"
 
       - name: Install ccache
         run: |
@@ -46,19 +57,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.ccache
-          key: ${{ runner.os }}-ccache-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/build.gradle', '**/gradle.properties') }}
+          key: ${{ runner.os }}-ccache-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/*.gradle', 'gradle.properties') }}
           restore-keys: |
             ${{ runner.os }}-ccache-
-
-      - name: Cache native intermediates
-        uses: actions/cache@v4
-        with:
-          path: |
-            TMessagesProj/.cxx
-            TMessagesProj_App/.cxx
-          key: ${{ runner.os }}-native-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake', '**/build.gradle', '**/gradle.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-native-
 
       - name: Configure ccache
         run: |
@@ -74,7 +75,7 @@ jobs:
         shell: bash
         run: |
           printf '%s' '${{ secrets.RELEASE_KEYSTORE_B64 }}' | base64 -d > release.keystore
-          ls -l release.keystore
+          test -s release.keystore
 
       - name: Create local.properties
         shell: bash
@@ -87,173 +88,31 @@ jobs:
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
 
-          echo "===== local.properties ====="
-          sed \
-            -e 's/storePassword=.*/storePassword=***/' \
-            -e 's/keyPassword=.*/keyPassword=***/' \
-            local.properties
-
-      - name: Create gradle.properties for CI
-        shell: bash
-        run: |
-          VERSION_NAME="${GITHUB_REF_NAME#v}"
-          if [ -z "$VERSION_NAME" ] || [ "$VERSION_NAME" = "$GITHUB_REF_NAME" ]; then
-            VERSION_NAME="dev"
-          fi
-          VERSION_CODE="$(date +%s)"
-
-          cat > gradle.properties <<EOF
-          org.gradle.daemon=false
-          org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
-          kotlin.daemon.jvm.options=-Xmx2g
-          org.gradle.parallel=false
-          org.gradle.workers.max=2
-
-          APP_VERSION_CODE=${VERSION_CODE}
-          APP_VERSION_NAME=${VERSION_NAME}
-          TG_APP_VERSION_CODE=${VERSION_CODE}
-          TG_APP_VERSION_NAME=${VERSION_NAME}
-          APP_PACKAGE=tw.nekomimi.nekogram
-          EOF
-
-          echo "===== gradle.properties ====="
-          sed -n '1,20p' gradle.properties
-
-      - name: Debug GOOGLE_SERVICES_JSON_B64
-        shell: bash
-        run: |
-          SECRET='${{ secrets.GOOGLE_SERVICES_JSON_B64 }}'
-
-          echo "masked direct echo:"
-          echo "$SECRET"
-
-          echo "length:"
-          printf '%s' "$SECRET" | wc -c
-
-          echo "prefix:"
-          printf '%s' "$SECRET" | cut -c 1-80
-
-          echo "sha256:"
-          printf '%s' "$SECRET" | sha256sum
-
-      - name: Restore google-services.json
+      - name: Restore google-services.json from secret
+        if: ${{ secrets.GOOGLE_SERVICES_JSON_B64 != '' }}
         shell: bash
         run: |
           mkdir -p TMessagesProj_App
           printf '%s' '${{ secrets.GOOGLE_SERVICES_JSON_B64 }}' | base64 -d > TMessagesProj_App/google-services.json
-          ls -l TMessagesProj_App/google-services.json
-          wc -c TMessagesProj_App/google-services.json
+          test -s TMessagesProj_App/google-services.json
 
       - name: Validate google-services.json
         shell: bash
         run: |
-          echo "===== file exists ====="
           if [ -f TMessagesProj_App/google-services.json ]; then
-            echo "exists=yes"
+            test -s TMessagesProj_App/google-services.json
+          elif [ -f google-services.json ]; then
+            test -s google-services.json
           else
-            echo "exists=no"
+            echo "google-services.json not found"
             exit 1
           fi
-
-          echo "===== file size ====="
-          ls -l TMessagesProj_App/google-services.json
-          wc -c TMessagesProj_App/google-services.json
-
-          echo "===== first 5 lines ====="
-          sed -n '1,5p' TMessagesProj_App/google-services.json || true
-
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-
-          p = Path("TMessagesProj_App/google-services.json")
-          raw = p.read_bytes()
-          print("byte_length:", len(raw))
-
-          text = raw.decode("utf-8")
-          data = json.loads(text)
-          print("google-services.json OK")
-          print("top-level keys:", list(data.keys()))
-          PY
-
-      - name: Generate Extra.java from template
-        run: |
-          cp TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java.example \
-             TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java
-
-      - name: Patch Gradle for CI only
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          def patch_file(path_str, replacements):
-              p = Path(path_str)
-              if not p.exists():
-                  print(f"Skip missing file: {p}")
-                  return
-              s = p.read_text(encoding="utf-8")
-              original = s
-              for old, new in replacements:
-                  s = s.replace(old, new)
-              if s != original:
-                  p.write_text(s, encoding="utf-8")
-                  print(f"Patched {p}")
-              else:
-                  print(f"No changes in {p}")
-
-          patch_file(
-              "TMessagesProj/build.gradle",
-              [
-                  ('${APP_VERSION_CODE}', '${project.findProperty("APP_VERSION_CODE") ?: "1"}L'),
-                  ('${APP_VERSION_NAME}', '${project.findProperty("APP_VERSION_NAME") ?: "dev"}'),
-                  ('${TG_APP_VERSION_CODE}', '${project.findProperty("TG_APP_VERSION_CODE") ?: "1"}L'),
-                  ('${TG_APP_VERSION_NAME}', '${project.findProperty("TG_APP_VERSION_NAME") ?: "dev"}'),
-              ]
-          )
-
-          patch_file(
-              "TMessagesProj_App/build.gradle",
-              [
-                  (
-                      'defaultConfig.applicationId = APP_PACKAGE',
-                      'defaultConfig.applicationId = (project.findProperty("APP_PACKAGE") ?: "tw.nekomimi.nekogram")'
-                  ),
-                  (
-                      'defaultConfig.versionCode = Integer.parseInt(APP_VERSION_CODE)',
-                      'defaultConfig.versionCode = Integer.parseInt((project.findProperty("APP_VERSION_CODE") ?: "1").toString())'
-                  ),
-                  (
-                      'versionName APP_VERSION_NAME',
-                      'versionName (project.findProperty("APP_VERSION_NAME") ?: "dev").toString()'
-                  ),
-                  (
-                      'uploadNativeSymbols = true',
-                      'uploadNativeSymbols = false'
-                  ),
-                  (
-                      'includeSourceContext = true',
-                      'includeSourceContext = false'
-                  ),
-              ]
-          )
-          PY
-
-      - name: Show patched Gradle files
-        run: |
-          echo "===== TMessagesProj/build.gradle ====="
-          sed -n '90,120p' TMessagesProj/build.gradle || true
-          echo "===== TMessagesProj_App/build.gradle ====="
-          sed -n '1,90p' TMessagesProj_App/build.gradle || true
 
       - name: Grant gradlew permission
         run: chmod +x ./gradlew
 
       - name: Build release APK
-        run: |
-          ./gradlew assembleRelease --stacktrace --no-daemon \
-            -x :TMessagesProj_App:uploadSentryProguardMappingsRelease \
-            -x :TMessagesProj_App:uploadSentryNativeSymbolsForRelease
+        run: ./gradlew :TMessagesProj_App:assembleRelease --stacktrace --console=plain
 
       - name: Show ccache stats
         if: always()
@@ -264,6 +123,6 @@ jobs:
         with:
           name: nekogram-release
           path: |
-            **/build/outputs/apk/release/*.apk
-            **/build/outputs/apk/**/*.apk
-            **/build/outputs/mapping/release/**
+            TMessagesProj_App/build/outputs/apk/**/*.apk
+            TMessagesProj_App/build/outputs/mapping/release/**
+            TMessagesProj_App/build/outputs/native-debug-symbols/release/**

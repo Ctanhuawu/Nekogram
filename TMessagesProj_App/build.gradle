@@ -10,6 +10,16 @@ dependencies {
     implementation project(':TMessagesProj')
 }
 
+Properties localProperties = new Properties()
+if (project.rootProject.file('local.properties').exists()) {
+    localProperties.load(project.rootProject.file('local.properties').newDataInputStream())
+}
+
+def sentryAuthToken = System.getenv("SENTRY_AUTH_TOKEN") ?: localProperties.getProperty("SENTRY_AUTH_TOKEN")
+def sentryOrg = System.getenv("SENTRY_ORG") ?: localProperties.getProperty("SENTRY_ORG")
+def sentryProject = System.getenv("SENTRY_PROJECT") ?: localProperties.getProperty("SENTRY_PROJECT")
+def sentryUploadEnabled = sentryAuthToken && sentryOrg && sentryProject
+
 sentry {
     uploadNativeSymbols = true
     includeSourceContext = true
@@ -20,6 +30,18 @@ sentry {
     ignoredBuildTypes = ["debug"]
 }
 
+if (!sentryUploadEnabled) {
+    tasks.configureEach { task ->
+        if (task.name in [
+                "uploadSentryProguardMappingsRelease",
+                "uploadSentryNativeSymbolsForRelease",
+                "sentryBundleSourcesRelease"
+        ]) {
+            task.enabled = false
+        }
+    }
+}
+
 android {
     defaultConfig.applicationId = APP_PACKAGE
 
@@ -27,11 +49,6 @@ android {
         resources {
             excludes += '**'
         }
-    }
-
-    Properties localProperties = new Properties()
-    if (project.rootProject.file('local.properties').exists()) {
-        localProperties.load(project.rootProject.file('local.properties').newDataInputStream())
     }
 
     signingConfigs {
@@ -84,10 +101,10 @@ android {
     splits.abi {
         var buildingBundle = gradle.startParameter.taskNames.any { it.startsWith("bundle") }
         enable !buildingBundle
-        universalApk true
+        universalApk false
 
         reset()
-        include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        include "arm64-v8a"
     }
     namespace 'org.telegram.messenger.regular'
 

@@ -1,5 +1,6 @@
 .idea/
 .gradle/
+.gradle-user-home/
 build/
 obj/
 *.iml
@@ -16,3 +17,8 @@ TMessagesProj_AppHuawei/afat/
 /TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java
 google-services.json
 sentry.properties
+release.keystore
+*.jks
+*.keystore
+*.hprof
+*.log
