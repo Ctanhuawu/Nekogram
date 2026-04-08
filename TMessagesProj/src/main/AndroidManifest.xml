@@ -35,6 +35,7 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED"/>
     <uses-permission android:name="android.permission.GET_ACCOUNTS" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.WRITE_CONTACTS" />
@@ -840,15 +841,6 @@
             android:value="org.telegram.messenger.chromecast.ChromecastOptionsProvider" />
 
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/notification" />
-
-        <provider
-            android:name="io.sentry.android.core.SentryInitProvider"
-            android:authorities="${applicationId}.SentryInitProvider"
-            tools:node="remove" />
-        <provider
-            android:name="io.sentry.android.core.SentryPerformanceProvider"
-            android:authorities="${applicationId}.SentryPerformanceProvider"
-            tools:node="remove" />
 
     </application>
 

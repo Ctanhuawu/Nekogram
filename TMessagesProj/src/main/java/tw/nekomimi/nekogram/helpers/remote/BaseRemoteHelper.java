@@ -59,6 +59,10 @@ public abstract class BaseRemoteHelper {
 
     abstract protected String getRequestParams();
 
+    public static boolean hasRemoteBot() {
+        return Extra.getHelperBot() != null;
+    }
+
     public static String getRequestExtra() {
         return " " +
                 BuildConfig.VERSION_CODE +

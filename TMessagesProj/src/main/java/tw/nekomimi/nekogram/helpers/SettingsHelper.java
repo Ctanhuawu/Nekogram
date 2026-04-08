@@ -52,6 +52,10 @@ public class SettingsHelper {
                     break;
                 case "donate":
                 case "d":
+                    if (!NekoDonateActivity.hasDonationOptions()) {
+                        unknown.run();
+                        return;
+                    }
                     fragment = new NekoDonateActivity();
                     break;
                 case "experimental":

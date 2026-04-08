@@ -13931,7 +13931,7 @@ public class ChatActivity extends BaseFragment implements
         } else if (which == attach_gallery) {
             final Activity activity = getParentActivity();
             if (Build.VERSION.SDK_INT >= 33) {
-                if (activity.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                if (!AndroidUtilities.hasVisualMediaPermission(activity)) {
                     try {
                         getParentActivity().requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE);
                     } catch (Throwable ignore) {}

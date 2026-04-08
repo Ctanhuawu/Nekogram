@@ -5,21 +5,15 @@ import android.content.SharedPreferences;
 import android.os.Bundle;
 
 import com.google.firebase.analytics.FirebaseAnalytics;
+import com.google.firebase.crashlytics.FirebaseCrashlytics;
 
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildConfig;
-import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.Utilities;
-import org.telegram.ui.ActionBar.BaseFragment;
 
 import java.util.HashMap;
 
-import io.sentry.Breadcrumb;
-import io.sentry.Sentry;
-import io.sentry.SentryLevel;
-import io.sentry.android.core.SentryAndroid;
-import io.sentry.protocol.User;
 import tw.nekomimi.nekogram.Extra;
 
 public class AnalyticsHelper {
@@ -35,61 +29,48 @@ public class AnalyticsHelper {
         preferences = application.getSharedPreferences("nekoanalytics", Application.MODE_PRIVATE);
         analyticsDisabled = !Extra.FORCE_ANALYTICS && preferences.getBoolean("analyticsDisabled", false);
         sendBugReport = Extra.FORCE_ANALYTICS || preferences.getBoolean("sendBugReport", true);
-        if (analyticsDisabled) {
-            FileLog.d("Analytics: userId = disabled");
-            return;
-        }
         userId = preferences.getString("userId", null);
         if (userId == null || userId.length() < 32) {
             preferences.edit().putString("userId", userId = generateUserID()).apply();
         }
-        firebaseAnalytics = FirebaseAnalytics.getInstance(application);
-        firebaseAnalytics.setAnalyticsCollectionEnabled(true);
-        firebaseAnalytics.setUserId(userId);
-        SentryAndroid.init(application, options -> {
-            options.setDsn(Extra.SENTRY_DSN);
-            options.setEnvironment(BuildConfig.BUILD_TYPE);
-            options.setPrintUncaughtStackTrace(true);
-            options.setSendDefaultPii(true);
-            options.setEnableUserInteractionTracing(true);
-            options.setAttachViewHierarchy(true);
-            options.setEnableSystemEventBreadcrumbsExtras(true);
-            options.setTracesSampleRate(0.01);
-        });
-        var user = new User();
-        user.setId(userId);
-        Sentry.setUser(user);
 
-        if (BuildVars.LOGS_ENABLED) {
-            FileLog.d("Analytics: userId = " + userId);
+        firebaseAnalytics = FirebaseAnalytics.getInstance(application);
+        firebaseAnalytics.setAnalyticsCollectionEnabled(!analyticsDisabled);
+        if (!analyticsDisabled) {
+            firebaseAnalytics.setUserId(userId);
         }
+
+        var crashlytics = FirebaseCrashlytics.getInstance();
+        boolean crashlyticsEnabled = !analyticsDisabled && sendBugReport;
+        crashlytics.setCrashlyticsCollectionEnabled(crashlyticsEnabled);
+        if (crashlyticsEnabled) {
+            crashlytics.setUserId(userId);
+            crashlytics.setCustomKey("version_code", BuildConfig.VERSION_CODE);
+            crashlytics.setCustomKey("build_type", BuildConfig.BUILD_TYPE);
+        }
+
+        if (analyticsDisabled) {
+            FileLog.d("Analytics: userId = disabled");
+            return;
+        }
+        FileLog.d("Analytics: userId = " + userId);
     }
 
     private static String generateUserID() {
         return Utilities.generateRandomString(32);
     }
 
-    public static void trackFragmentLifecycle(String lifecycle, BaseFragment fragment) {
-        if (analyticsDisabled || fragment == null) return;
-        var breadcrumb = new Breadcrumb();
-        breadcrumb.setType("navigation");
-        breadcrumb.setCategory("ui.fragment.lifecycle");
-        breadcrumb.setLevel(SentryLevel.INFO);
-        breadcrumb.setData("state", lifecycle);
-        breadcrumb.setData("screen", getFragmentName(fragment));
-        Sentry.addBreadcrumb(breadcrumb);
-        if ("created".equals(lifecycle)) {
-            firebaseAnalytics.logEvent(FirebaseAnalytics.Event.SCREEN_VIEW, null);
-        }
+    public static void trackScreenView() {
+        trackEvent(FirebaseAnalytics.Event.SCREEN_VIEW);
     }
 
-    private static String getFragmentName(BaseFragment fragment) {
-        var canonicalName = fragment.getClass().getCanonicalName();
-        return canonicalName != null ? canonicalName : fragment.getClass().getSimpleName();
+    public static void trackEvent(String event) {
+        if (analyticsDisabled || firebaseAnalytics == null) return;
+        firebaseAnalytics.logEvent(event, new Bundle());
     }
 
     public static void trackEvent(String event, HashMap<String, String> map) {
-        if (analyticsDisabled) return;
+        if (analyticsDisabled || firebaseAnalytics == null) return;
         Bundle bundle = new Bundle();
         for (String key : map.keySet()) {
             bundle.putString(key, map.get(key));
@@ -105,12 +86,14 @@ public class AnalyticsHelper {
         AnalyticsHelper.analyticsDisabled = true;
         if (BuildConfig.DEBUG) return;
         FirebaseAnalytics.getInstance(ApplicationLoader.applicationContext).setAnalyticsCollectionEnabled(false);
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(false);
         preferences.edit().putBoolean("analyticsDisabled", true).apply();
     }
 
     public static void toggleSendBugReport() {
         AnalyticsHelper.sendBugReport = !AnalyticsHelper.sendBugReport;
         if (BuildConfig.DEBUG) return;
+        FirebaseCrashlytics.getInstance().setCrashlyticsCollectionEnabled(sendBugReport && !analyticsDisabled);
         preferences.edit().putBoolean("sendBugReport", sendBugReport).apply();
     }
 }

@@ -3674,13 +3674,50 @@ public class AndroidUtilities {
         }
     }
 
+    private static boolean hasGrantedPermission(Context context, String permission) {
+        return context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    public static boolean hasVisualMediaPermission(Context context) {
+        if (Build.VERSION.SDK_INT >= 34 && hasGrantedPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) {
+            return true;
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            return hasGrantedPermission(context, Manifest.permission.READ_MEDIA_IMAGES)
+                && hasGrantedPermission(context, Manifest.permission.READ_MEDIA_VIDEO);
+        }
+        return Build.VERSION.SDK_INT < 23 || hasGrantedPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE);
+    }
+
+    public static boolean hasImageMediaPermission(Context context) {
+        if (Build.VERSION.SDK_INT >= 34 && hasGrantedPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) {
+            return true;
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            return hasGrantedPermission(context, Manifest.permission.READ_MEDIA_IMAGES);
+        }
+        return Build.VERSION.SDK_INT < 23 || hasGrantedPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE);
+    }
+
+    public static boolean hasAnyMediaPermission(Context context) {
+        if (Build.VERSION.SDK_INT >= 34 && hasGrantedPermission(context, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)) {
+            return true;
+        }
+        if (Build.VERSION.SDK_INT >= 33) {
+            return hasGrantedPermission(context, Manifest.permission.READ_MEDIA_IMAGES)
+                || hasGrantedPermission(context, Manifest.permission.READ_MEDIA_VIDEO)
+                || hasGrantedPermission(context, Manifest.permission.READ_MEDIA_AUDIO);
+        }
+        return Build.VERSION.SDK_INT < 23 || hasGrantedPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE);
+    }
+
     private static File getAlbumDir(boolean secretChat) {
         if (
             secretChat ||
             !BuildVars.NO_SCOPED_STORAGE ||
             (
                 Build.VERSION.SDK_INT >= 33 &&
-                ApplicationLoader.applicationContext.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED
+                !hasImageMediaPermission(ApplicationLoader.applicationContext)
             ) || (
                 Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 33 &&
                 ApplicationLoader.applicationContext.checkSelfPermission(android.Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED

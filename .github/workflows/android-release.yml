@@ -20,9 +20,6 @@ jobs:
     timeout-minutes: 90
 
     env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
       GOOGLE_SERVICES_JSON_B64: ${{ secrets.GOOGLE_SERVICES_JSON_B64 }}
       EXTRA_APP_ID: ${{ secrets.EXTRA_APP_ID }}
       EXTRA_APP_HASH: ${{ secrets.EXTRA_APP_HASH }}
@@ -33,7 +30,6 @@ jobs:
       EXTRA_TWPIC_BOT_USERNAME: ${{ secrets.EXTRA_TWPIC_BOT_USERNAME }}
       EXTRA_FORCE_ANALYTICS: ${{ secrets.EXTRA_FORCE_ANALYTICS }}
       EXTRA_TLV_URL: ${{ secrets.EXTRA_TLV_URL }}
-      EXTRA_SENTRY_DSN: ${{ secrets.EXTRA_SENTRY_DSN }}
 
     steps:
       - name: Checkout
@@ -151,7 +147,6 @@ jobs:
               'public static String TWPIC_BOT_USERNAME = null;': f"public static String TWPIC_BOT_USERNAME = {java_string(os.environ.get('EXTRA_TWPIC_BOT_USERNAME'), nullable=True)};",
               "public static boolean FORCE_ANALYTICS = false;": f"public static boolean FORCE_ANALYTICS = {force_analytics or 'false'};",
               'public static String TLV_URL = "";': f"public static String TLV_URL = {java_string(os.environ.get('EXTRA_TLV_URL'))};",
-              'public static String SENTRY_DSN = "";': f"public static String SENTRY_DSN = {java_string(os.environ.get('EXTRA_SENTRY_DSN'))};",
           }
 
           content = template
@@ -188,7 +183,7 @@ jobs:
         run: chmod +x ./gradlew
 
       - name: Build release APK
-        run: ./gradlew :TMessagesProj_App:assembleRelease --stacktrace --console=plain
+        run: ./gradlew :TMessagesProj_App:assembleRelease :TMessagesProj_App:uploadCrashlyticsSymbolFileRelease --stacktrace --console=plain
 
       - name: Show ccache stats
         if: always()

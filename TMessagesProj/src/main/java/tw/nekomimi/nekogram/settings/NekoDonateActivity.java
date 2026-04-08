@@ -50,7 +50,7 @@ import org.telegram.ui.LaunchActivity;
 import org.telegram.ui.Stories.recorder.ButtonWithCounterView;
 
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -58,18 +58,26 @@ import java.util.stream.Collectors;
 import tw.nekomimi.nekogram.helpers.remote.ConfigHelper;
 
 public class NekoDonateActivity extends BaseNekoSettingsActivity implements PurchasesUpdatedListener {
-    private static final List<String> SKUS = Arrays.asList("donate001", "donate002", "donate005", "donate010", "donate020", "donate050", "donate100");
+    private static final List<String> SKUS = Collections.emptyList();
     private final List<ConfigHelper.Crypto> cryptos = ConfigHelper.getCryptos();
 
     private final int donateRow = 100;
     private final int cryptoRow = 200;
 
     private BillingClient billingClient;
-    private List<ProductDetails> productDetails;
+    private List<ProductDetails> productDetails = Collections.emptyList();
+
+    public static boolean hasDonationOptions() {
+        return !SKUS.isEmpty() || !ConfigHelper.getCryptos().isEmpty();
+    }
 
     @Override
     public boolean onFragmentCreate() {
         super.onFragmentCreate();
+
+        if (SKUS.isEmpty()) {
+            return true;
+        }
 
         billingClient = BillingClient.newBuilder(ApplicationLoader.applicationContext)
                 .setListener(this)
@@ -83,7 +91,9 @@ public class NekoDonateActivity extends BaseNekoSettingsActivity implements Purc
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
 
-        billingClient.endConnection();
+        if (billingClient != null) {
+            billingClient.endConnection();
+        }
     }
 
     private void showErrorAlert(BillingResult result) {
@@ -106,6 +116,10 @@ public class NekoDonateActivity extends BaseNekoSettingsActivity implements Purc
     @Override
     public View createView(Context context) {
         View fragmentView = super.createView(context);
+
+        if (SKUS.isEmpty()) {
+            return fragmentView;
+        }
 
         billingClient.startConnection(new BillingClientStateListener() {
             @Override
@@ -160,24 +174,25 @@ public class NekoDonateActivity extends BaseNekoSettingsActivity implements Purc
             items.add(UItem.asShadow(null));
         }
 
-        items.add(UItem.asHeader(LocaleController.getString(R.string.GooglePlay)));
-        if (productDetails != null && !productDetails.isEmpty()) {
+        if (!SKUS.isEmpty()) {
+            items.add(UItem.asHeader(LocaleController.getString(R.string.GooglePlay)));
             for (int i = 0; i < productDetails.size(); i++) {
                 var product = productDetails.get(i);
                 var details = product.getOneTimePurchaseOfferDetails();
                 items.add(TextSettingsCellFactory.of(donateRow + i, details != null ? details.getFormattedPrice() : product.getName()));
             }
-        } else {
-            items.add(UItem.asFlicker(1, FlickerLoadingView.TEXT_SETTINGS_TYPE));
+            if (productDetails.isEmpty()) {
+                items.add(UItem.asFlicker(1, FlickerLoadingView.TEXT_SETTINGS_TYPE));
+            }
+            items.add(UItem.asShadow(null));
         }
-        items.add(UItem.asShadow(null));
     }
 
     @Override
     protected void onItemClick(UItem item, View view, int position, float x, float y) {
         var id = item.id;
         if (id >= donateRow && id < cryptoRow) {
-            if (productDetails != null && productDetails.size() > id - donateRow) {
+            if (productDetails.size() > id - donateRow) {
                 var productDetailsParamsList =
                         ImmutableList.of(
                                 BillingFlowParams.ProductDetailsParams.newBuilder()

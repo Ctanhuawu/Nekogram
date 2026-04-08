@@ -3,15 +3,11 @@ package tw.nekomimi.nekogram.helpers;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
-import org.telegram.messenger.UserConfig;
 import org.telegram.tgnet.TLRPC;
 
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.function.BiConsumer;
-
-import tw.nekomimi.nekogram.Extra;
-import tw.nekomimi.nekogram.helpers.remote.BaseRemoteHelper;
 
 public class RegDateHelper {
     private static final HashMap<Long, Integer> regDates = new HashMap<>();
@@ -26,41 +22,29 @@ public class RegDateHelper {
     }
 
     public static void getRegDate(long userId, BiConsumer<Integer, String> callback) {
-        InlineBotHelper.getInstance(UserConfig.selectedAccount).query(Extra.getHelperBot(), "get_regdate " + userId + BaseRemoteHelper.getRequestExtra(), (results, error) -> {
-            if (error != null) {
-                callback.accept(0, error);
-                return;
-            }
-            var result = !results.isEmpty() ? results.get(0) : null;
-            if (result == null) {
-                callback.accept(0, "EMPTY_RESULT");
-                return;
-            }
-            int date;
-            try {
-                date = Integer.parseInt(BaseRemoteHelper.getTextFromInlineResult(result));
-            } catch (NumberFormatException e) {
-                callback.accept(0, "INVALID_RESULT");
-                return;
-            }
-            regDates.put(userId, date);
-            callback.accept(date, null);
-        });
+        Integer regDate = regDates.get(userId);
+        if (regDate != null) {
+            callback.accept(regDate, null);
+            return;
+        }
+        callback.accept(0, LocaleController.getString(R.string.Unavailable));
     }
 
     public static void setRegDate(long dialogId, TLRPC.PeerSettings settings) {
         if (settings == null || settings.registration_month == null) {
             return;
         }
-        InlineBotHelper.getInstance(UserConfig.selectedAccount).query(Extra.getHelperBot(), String.format("set_regdate %s %s %s %s", dialogId, settings.registration_month, settings.phone_country, BaseRemoteHelper.getRequestExtra()), (results, error) -> {
-            if (error != null) {
-                FileLog.e("Failed to set reg date: " + error);
-            }
-        });
         var parts = settings.registration_month.split("\\.");
         if (parts.length != 2) return;
-        var month = Integer.parseInt(parts[0]);
-        var year = Integer.parseInt(parts[1]);
+        int month;
+        int year;
+        try {
+            month = Integer.parseInt(parts[0]);
+            year = Integer.parseInt(parts[1]);
+        } catch (NumberFormatException e) {
+            FileLog.e(e);
+            return;
+        }
         var calendar = Calendar.getInstance();
         calendar.set(year, month - 1, 2, 0, 0, 0);
         calendar.set(Calendar.MILLISECOND, 0);

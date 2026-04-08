@@ -718,7 +718,7 @@ public class ImageUpdater implements NotificationCenter.NotificationCenterDelega
         }
         final Activity activity = parentFragment.getParentActivity();
         if (Build.VERSION.SDK_INT >= 33 && activity != null) {
-            if (activity.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED || activity.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED) {
+            if (!AndroidUtilities.hasVisualMediaPermission(activity)) {
                 activity.requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE_FOR_AVATAR);
                 return;
             }

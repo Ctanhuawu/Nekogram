@@ -8,7 +8,6 @@ import org.telegram.messenger.FileLog;
 import org.telegram.tgnet.TLRPC;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -18,12 +17,7 @@ import tw.nekomimi.nekogram.NekoConfig;
 public class ConfigHelper extends BaseRemoteHelper {
     private static final String NEWS_METHOD = "get_config";
 
-    private static final List<Long> DEFAULT_VERIFY_LIST = Arrays.asList(
-            1349472891L,
-            1339737452L,
-            1302242053L,
-            1715773134L
-    );
+    private static final List<Long> DEFAULT_VERIFY_LIST = Collections.emptyList();
 
     private static final int TYPE_NEWS = 0;
     private static final int TYPE_PROXY = 1;

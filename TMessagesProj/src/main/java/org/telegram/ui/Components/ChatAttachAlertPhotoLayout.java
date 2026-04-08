@@ -3180,10 +3180,7 @@ public class ChatAttachAlertPhotoLayout extends ChatAttachAlert.AttachAlertLayou
         }
         return Build.VERSION.SDK_INT >= 23 && (
             activity == null ||
-                Build.VERSION.SDK_INT >= 33 && (
-                    activity.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED ||
-                        activity.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED
-                ) ||
+                Build.VERSION.SDK_INT >= 33 && !AndroidUtilities.hasVisualMediaPermission(activity) ||
                 Build.VERSION.SDK_INT < 33 && activity.checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
         );
     }

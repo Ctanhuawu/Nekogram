@@ -10,6 +10,7 @@ import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.SharedConfig;
 import org.telegram.messenger.UserConfig;
 
+import tw.nekomimi.nekogram.helpers.remote.BaseRemoteHelper;
 import tw.nekomimi.nekogram.helpers.remote.ConfigHelper;
 import tw.nekomimi.nekogram.helpers.remote.UpdateHelper;
 
@@ -19,6 +20,9 @@ public class PushHelper {
 
     public static void processRemoteMessage(String data) {
         if (!UserConfig.getInstance(UserConfig.selectedAccount).isClientActivated()) {
+            return;
+        }
+        if (!BaseRemoteHelper.hasRemoteBot()) {
             return;
         }
         try {

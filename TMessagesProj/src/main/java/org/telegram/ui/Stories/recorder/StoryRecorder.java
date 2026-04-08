@@ -7236,10 +7236,7 @@ public class StoryRecorder implements NotificationCenter.NotificationCenterDeleg
         if (activity != null) {
             boolean noGalleryPermission = false;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                noGalleryPermission = (
-                    activity.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED ||
-                    activity.checkSelfPermission(Manifest.permission.READ_MEDIA_VIDEO) != PackageManager.PERMISSION_GRANTED
-                );
+                noGalleryPermission = !AndroidUtilities.hasVisualMediaPermission(activity);
                 if (noGalleryPermission) {
                     activity.requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO}, 114);
                 }

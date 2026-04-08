@@ -3,7 +3,7 @@ import com.android.build.api.variant.FilterConfiguration
 plugins {
     id 'com.android.application'
     id 'com.google.gms.google-services'
-    id 'io.sentry.android.gradle'
+    id 'com.google.firebase.crashlytics'
 }
 
 dependencies {
@@ -13,33 +13,6 @@ dependencies {
 Properties localProperties = new Properties()
 if (project.rootProject.file('local.properties').exists()) {
     localProperties.load(project.rootProject.file('local.properties').newDataInputStream())
-}
-
-def sentryAuthToken = System.getenv("SENTRY_AUTH_TOKEN") ?: localProperties.getProperty("SENTRY_AUTH_TOKEN")
-def sentryOrg = System.getenv("SENTRY_ORG") ?: localProperties.getProperty("SENTRY_ORG")
-def sentryProject = System.getenv("SENTRY_PROJECT") ?: localProperties.getProperty("SENTRY_PROJECT")
-def sentryUploadEnabled = sentryAuthToken && sentryOrg && sentryProject
-
-sentry {
-    uploadNativeSymbols = true
-    includeSourceContext = true
-    additionalSourceDirsForSourceContext = [ '../TMessagesProj/src/main/java' ]
-    autoInstallation {
-        enabled = false
-    }
-    ignoredBuildTypes = ["debug"]
-}
-
-if (!sentryUploadEnabled) {
-    tasks.configureEach { task ->
-        if (task.name in [
-                "uploadSentryProguardMappingsRelease",
-                "uploadSentryNativeSymbolsForRelease",
-                "sentryBundleSourcesRelease"
-        ]) {
-            task.enabled = false
-        }
-    }
 }
 
 android {
@@ -73,7 +46,6 @@ android {
         release {
             minifyEnabled true
             shrinkResources true
-            vcsInfo.include false
             if (localProperties.getProperty("storeFile") != null) {
                 signingConfig signingConfigs.sign
             } else {
@@ -81,6 +53,10 @@ android {
             }
             proguardFiles '../TMessagesProj/proguard-rules.pro'
             ndk.debugSymbolLevel 'FULL'
+            firebaseCrashlytics {
+                nativeSymbolUploadEnabled true
+                unstrippedNativeLibsDir file("${rootDir}/TMessagesProj/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib")
+            }
         }
     }
 

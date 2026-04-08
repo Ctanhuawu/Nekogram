@@ -680,7 +680,7 @@ public class CameraScanActivity extends BaseFragment {
                     }
                     final Activity activity = getParentActivity();
                     if (Build.VERSION.SDK_INT >= 33) {
-                        if (activity.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                        if (!AndroidUtilities.hasVisualMediaPermission(activity)) {
                             activity.requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE);
                             return;
                         }

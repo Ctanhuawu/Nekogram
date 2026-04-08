@@ -113,7 +113,7 @@ public class WallpaperUpdater {
             final Activity activity = parentFragment.getParentActivity();
             if (activity != null) {
                 if (Build.VERSION.SDK_INT >= 33) {
-                    if (activity.checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) != PackageManager.PERMISSION_GRANTED) {
+                    if (!AndroidUtilities.hasImageMediaPermission(activity)) {
                         activity.requestPermissions(new String[]{Manifest.permission.READ_MEDIA_IMAGES}, BasePermissionsActivity.REQUEST_CODE_EXTERNAL_STORAGE);
                         return;
                     }
