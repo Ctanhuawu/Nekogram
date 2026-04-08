@@ -101,3 +101,11 @@ androidComponents {
         }
     }
 }
+
+tasks.matching { it.name == "generateCrashlyticsSymbolFileRelease" }.configureEach {
+    dependsOn(":TMessagesProj:mergeReleaseNativeLibs")
+}
+
+tasks.matching { it.name == "uploadCrashlyticsSymbolFileRelease" }.configureEach {
+    dependsOn("generateCrashlyticsSymbolFileRelease")
+}
