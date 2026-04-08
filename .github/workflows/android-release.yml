@@ -55,8 +55,15 @@ jobs:
             "platform-tools" \
             "platforms;android-36" \
             "build-tools;36.1.0" \
-            "ndk;27.3.13750724" \
-            "cmake;4.0.0"
+            "ndk;27.3.13750724"
+
+          CMAKE_PACKAGE="$(sdkmanager --list | awk '/^  cmake;4\./ { print $1 }' | sort -V | tail -n 1)"
+          if [ -z "$CMAKE_PACKAGE" ]; then
+            echo "No CMake 4.x package found in sdkmanager output"
+            exit 1
+          fi
+          echo "Installing $CMAKE_PACKAGE"
+          sdkmanager "$CMAKE_PACKAGE"
 
       - name: Install ccache
         run: |
