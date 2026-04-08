@@ -22,6 +22,16 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      EXTRA_APP_ID: ${{ secrets.EXTRA_APP_ID }}
+      EXTRA_APP_HASH: ${{ secrets.EXTRA_APP_HASH }}
+      EXTRA_PLAYSTORE_APP_URL: ${{ secrets.EXTRA_PLAYSTORE_APP_URL }}
+      EXTRA_WS_USER_AGENT: ${{ secrets.EXTRA_WS_USER_AGENT }}
+      EXTRA_WS_CONN_HASH: ${{ secrets.EXTRA_WS_CONN_HASH }}
+      EXTRA_WS_DEFAULT_DOMAIN: ${{ secrets.EXTRA_WS_DEFAULT_DOMAIN }}
+      EXTRA_TWPIC_BOT_USERNAME: ${{ secrets.EXTRA_TWPIC_BOT_USERNAME }}
+      EXTRA_FORCE_ANALYTICS: ${{ secrets.EXTRA_FORCE_ANALYTICS }}
+      EXTRA_TLV_URL: ${{ secrets.EXTRA_TLV_URL }}
+      EXTRA_SENTRY_DSN: ${{ secrets.EXTRA_SENTRY_DSN }}
 
     steps:
       - name: Checkout
@@ -87,6 +97,63 @@ jobs:
           keyAlias=${{ secrets.RELEASE_KEY_ALIAS }}
           keyPassword=${{ secrets.RELEASE_KEY_PASSWORD }}
           EOF
+
+      - name: Generate Extra.java from secrets
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          required = {
+              "EXTRA_APP_ID": os.environ.get("EXTRA_APP_ID", "").strip(),
+              "EXTRA_APP_HASH": os.environ.get("EXTRA_APP_HASH", "").strip(),
+          }
+          missing = [name for name, value in required.items() if not value]
+          if missing:
+              raise SystemExit(f"Missing required secrets: {', '.join(missing)}")
+
+          def java_string(value: str | None, *, nullable: bool = False) -> str:
+              value = (value or "").strip()
+              if not value:
+                  return "null" if nullable else '""'
+              escaped = (
+                  value.replace("\\", "\\\\")
+                  .replace('"', '\\"')
+                  .replace("\n", "\\n")
+              )
+              return f'"{escaped}"'
+
+          force_analytics = os.environ.get("EXTRA_FORCE_ANALYTICS", "").strip().lower()
+          if force_analytics not in {"", "true", "false"}:
+              raise SystemExit("EXTRA_FORCE_ANALYTICS must be true or false when set")
+
+          template_path = Path("TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java.example")
+          output_path = Path("TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java")
+          template = template_path.read_text(encoding="utf-8")
+
+          replacements = {
+              "public static final int APP_ID = 0;": f"public static final int APP_ID = {required['EXTRA_APP_ID']};",
+              'public static final String APP_HASH = "";': f"public static final String APP_HASH = {java_string(required['EXTRA_APP_HASH'])};",
+              'public static final String PLAYSTORE_APP_URL = "";': f"public static final String PLAYSTORE_APP_URL = {java_string(os.environ.get('EXTRA_PLAYSTORE_APP_URL'))};",
+              'public static String WS_USER_AGENT = "";': f"public static String WS_USER_AGENT = {java_string(os.environ.get('EXTRA_WS_USER_AGENT'))};",
+              'public static String WS_CONN_HASH = "";': f"public static String WS_CONN_HASH = {java_string(os.environ.get('EXTRA_WS_CONN_HASH'))};",
+              'public static String WS_DEFAULT_DOMAIN = "";': f"public static String WS_DEFAULT_DOMAIN = {java_string(os.environ.get('EXTRA_WS_DEFAULT_DOMAIN'))};",
+              'public static String TWPIC_BOT_USERNAME = null;': f"public static String TWPIC_BOT_USERNAME = {java_string(os.environ.get('EXTRA_TWPIC_BOT_USERNAME'), nullable=True)};",
+              "public static boolean FORCE_ANALYTICS = false;": f"public static boolean FORCE_ANALYTICS = {force_analytics or 'false'};",
+              'public static String TLV_URL = "";': f"public static String TLV_URL = {java_string(os.environ.get('EXTRA_TLV_URL'))};",
+              'public static String SENTRY_DSN = "";': f"public static String SENTRY_DSN = {java_string(os.environ.get('EXTRA_SENTRY_DSN'))};",
+          }
+
+          content = template
+          for source, target in replacements.items():
+              if source not in content:
+                  raise SystemExit(f"Template marker not found: {source}")
+              content = content.replace(source, target, 1)
+
+          output_path.write_text(content, encoding="utf-8")
+          print(f"Wrote {output_path}")
+          PY
 
       - name: Restore google-services.json from secret
         if: ${{ secrets.GOOGLE_SERVICES_JSON_B64 != '' }}
