@@ -30,6 +30,7 @@ jobs:
       EXTRA_TWPIC_BOT_USERNAME: ${{ secrets.EXTRA_TWPIC_BOT_USERNAME }}
       EXTRA_FORCE_ANALYTICS: ${{ secrets.EXTRA_FORCE_ANALYTICS }}
       EXTRA_TLV_URL: ${{ secrets.EXTRA_TLV_URL }}
+      BUILD_BY: ${{ vars.BUILD_BY }}
 
     steps:
       - name: Checkout

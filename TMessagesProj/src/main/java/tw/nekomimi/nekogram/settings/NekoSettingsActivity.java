@@ -105,9 +105,13 @@ public class NekoSettingsActivity extends BaseNekoSettingsActivity implements Fa
         var subtitleView = new TextView(context);
         subtitleView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
         subtitleView.setGravity(Gravity.CENTER);
-        subtitleView.setSingleLine();
+        subtitleView.setMaxLines(TextUtils.isEmpty(BuildConfig.BUILD_BY) ? 1 : 2);
         subtitleView.setEllipsize(TextUtils.TruncateAt.END);
-        subtitleView.setText(String.format(Locale.US, "%s (%d)", BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE));
+        String subtitle = String.format(Locale.US, "%s (%d)", BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE);
+        if (!TextUtils.isEmpty(BuildConfig.BUILD_BY)) {
+            subtitle += "\nBuilt by " + BuildConfig.BUILD_BY;
+        }
+        subtitleView.setText(subtitle);
         subtitleView.setTextColor(getThemedColor(Theme.key_windowBackgroundWhiteGrayText));
         topView.addView(subtitleView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL | Gravity.TOP, 0, 168 - 12, 0, 0));
 

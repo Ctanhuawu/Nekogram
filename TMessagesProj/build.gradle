@@ -6,6 +6,17 @@ plugins {
     id 'org.lsposed.lsparanoid'
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
+def buildByValue = (System.getenv("BUILD_BY") ?: localProperties.getProperty("buildBy") ?: "").trim()
+def escapedBuildByValue = buildByValue
+        .replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+
 configurations.configureEach {
     exclude group: 'androidx.recyclerview', module: 'recyclerview'
     exclude group: 'org.jetbrains.kotlin', module: 'kotlin-stdlib-jdk7'
@@ -99,6 +110,7 @@ android {
             buildConfigField("String","VERSION_NAME","\"${APP_VERSION_NAME}\"")
             buildConfigField("long", "BUILD_VERSION", "${TG_APP_VERSION_CODE}")
             buildConfigField("String","BUILD_VERSION_STRING","\"${TG_APP_VERSION_NAME}\"")
+            buildConfigField("String", "BUILD_BY", "\"${escapedBuildByValue}\"")
             buildConfigField("boolean", "DEBUG_PRIVATE_VERSION", "false")
         }
 
@@ -107,6 +119,7 @@ android {
             buildConfigField("String","VERSION_NAME","\"${APP_VERSION_NAME}\"")
             buildConfigField("long", "BUILD_VERSION", "${TG_APP_VERSION_CODE}")
             buildConfigField("String","BUILD_VERSION_STRING","\"${TG_APP_VERSION_NAME}\"")
+            buildConfigField("String", "BUILD_BY", "\"${escapedBuildByValue}\"")
             buildConfigField("boolean", "DEBUG_PRIVATE_VERSION", "false")
         }
     }
