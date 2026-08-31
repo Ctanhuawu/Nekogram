@@ -61,7 +61,6 @@ import org.telegram.ui.Cells.BotSwitchCell;
 import org.telegram.ui.Cells.ContextLinkCell;
 import org.telegram.ui.Cells.MentionCell;
 import org.telegram.ui.Cells.StickerCell;
-import org.telegram.ui.Cells.TextInfoPrivacyCell;
 import org.telegram.ui.ChatActivity;
 import org.telegram.ui.Components.AnimatedEmojiSpan;
 import org.telegram.ui.Components.AvatarDrawable;
@@ -78,6 +77,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 
 import tw.nekomimi.nekogram.helpers.InlineBotHelper;
 
@@ -117,6 +117,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
     private ArrayList<MediaDataController.KeywordResult> searchResultSuggestions;
     private String[] lastSearchKeyboardLanguage;
     private ArrayList<TLRPC.User> searchResultCommandsUsers;
+    private ArrayList<Boolean> searchResultCommandsEphemeral;
     private ArrayList<TLRPC.BotInlineResult> searchResultBotContext;
     private long searchResultBotContextSwitchUserId;
     private TLRPC.TL_inlineBotSwitchPM searchResultBotContextSwitch;
@@ -141,7 +142,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
     private TLRPC.User user;
     public TLRPC.Chat chat;
 
-    private boolean searchInDailogs = false;
+    private boolean searchInDialogs = false;
 
     private EmojiView.ChooseStickerActionTracker mentionsStickersActionTracker;
 
@@ -897,6 +898,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                 searchResultUsernames = null;
                 searchResultUsernamesMap = null;
                 searchResultCommands = null;
+                searchResultCommandsEphemeral = null;
                 quickReplies = null;
                 searchResultSuggestions = null;
                 searchResultCommandsHelp = null;
@@ -940,6 +942,21 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
         }
     }
 
+    // Sort by rating descending and remove duplicates by dialogId
+    private static ArrayList<TLRPC.TL_topPeer> sortAndDeduplicateTopPeers(ArrayList<TLRPC.TL_topPeer> peers) {
+        // Sort by rating descending
+        peers.sort((a, b) -> Double.compare(b.rating, a.rating));
+
+        // Remove duplicates by dialogId, keeping highest rating (first occurrence after sort)
+        LinkedHashMap<Long, TLRPC.TL_topPeer> seen = new LinkedHashMap<>();
+        for (TLRPC.TL_topPeer peer : peers) {
+            long dialogId = DialogObject.getPeerDialogId(peer.peer);
+            seen.putIfAbsent(dialogId, peer);
+        }
+
+        return new ArrayList<>(seen.values());
+    }
+
     public void searchUsernameOrHashtag(CharSequence charSequence, int position, ArrayList<MessageObject> messageObjects, boolean usernameOnly, boolean forSearch) {
         final String text = charSequence == null ? "" : charSequence.toString();
         TLRPC.Chat currentChat = chat;
@@ -964,7 +981,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             AndroidUtilities.cancelRunOnUIThread(checkAgainRunnable);
             checkAgainRunnable = null;
         }
-        if (TextUtils.isEmpty(text) || text.length() > MessagesController.getInstance(currentAccount).maxMessageLength) {
+        if (TextUtils.isEmpty(text) || text.length() > MessagesController.getInstance(currentAccount).getMaxMessageLength()) {
             searchForContextBot(null, null);
             delegate.needChangePanelVisibility(false);
             lastText = null;
@@ -1176,8 +1193,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                 char ch = text.charAt(a);
                 if (a == 0 || text.charAt(a - 1) == ' ' || text.charAt(a - 1) == '\n' || ch == ':') {
                     if (ch == '@') {
-                        if (searchInDailogs || (needUsernames || needBotContext && a == 0)) {
-                            if (!searchInDailogs && info == null && a != 0) {
+                        if (searchInDialogs || (needUsernames || needBotContext && a == 0)) {
+                            if (!searchInDialogs && info == null && a != 0) {
                                 lastText = text;
                                 lastPosition = position;
                                 messages = messageObjects;
@@ -1258,7 +1275,15 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             ArrayList<TLObject> newResult = new ArrayList<>();
             final LongSparseArray<TLRPC.User> newResultsHashMap = new LongSparseArray<>();
             final LongSparseArray<TLObject> newMap = new LongSparseArray<>();
-            ArrayList<TLRPC.TL_topPeer> inlineBots = MediaDataController.getInstance(currentAccount).inlineBots;
+
+            final ArrayList<TLRPC.TL_topPeer> bots = new ArrayList<>();
+            bots.addAll(MediaDataController.getInstance(currentAccount).inlineBots);
+
+            if (currentChat == null || !(ChatObject.isMonoForum(currentChat) || ChatObject.isChannelAndNotMegaGroup(currentChat))) {
+                bots.addAll(MediaDataController.getInstance(currentAccount).guestBots);
+            }
+
+            final ArrayList<TLRPC.TL_topPeer> inlineBots = sortAndDeduplicateTopPeers(bots);
             if (!usernameOnly && needBotContext && dogPostion == 0 && !inlineBots.isEmpty()) {
                 int count = 0;
                 for (int a = 0; a < inlineBots.size(); a++) {
@@ -1350,7 +1375,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                     }
                 }
             }
-            if (searchInDailogs) {
+            if (searchInDialogs) {
                 ArrayList<TLRPC.Dialog> dialogs = MessagesController.getInstance(currentAccount).getAllDialogs();
                // ArrayList<TLRPC.TL_contact> contacts = ContactsController.getInstance(currentAccount).contacts;
                 for (int a = 0; a < dialogs.size(); a++) {
@@ -1440,10 +1465,11 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             stickers = null;
             quickReplies = null;
             searchResultCommands = null;
+            searchResultCommandsEphemeral = null;
             searchResultCommandsHelp = null;
             searchResultCommandsUsers = null;
             searchResultSuggestions = null;
-            if ((chat != null && chat.megagroup || searchInDailogs) && usernameString.length() > 0) {
+            if ((chat != null && chat.megagroup || searchInDialogs) && usernameString.length() > 0) {
                 if (newResult.size() < 5) {
                     AndroidUtilities.runOnUIThread(cancelDelayRunnable = () -> {
                         cancelDelayRunnable = null;
@@ -1530,6 +1556,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             searchResultUsernamesMap = null;
             quickReplies = null;
             searchResultCommands = null;
+            searchResultCommandsEphemeral = null;
             searchResultCommandsHelp = null;
             searchResultCommandsUsers = null;
             searchResultSuggestions = null;
@@ -1541,15 +1568,17 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             ArrayList<String> newResult = new ArrayList<>();
             ArrayList<String> newResultHelp = new ArrayList<>();
             ArrayList<TLRPC.User> newResultUsers = new ArrayList<>();
+            ArrayList<Boolean> newResultEphemeral = new ArrayList<>();
             final String command = result.toString().toLowerCase();
             for (int b = 0; b < botInfo.size(); b++) {
                 TL_bots.BotInfo info = botInfo.valueAt(b);
                 for (int a = 0; a < info.commands.size(); a++) {
-                    TLRPC.TL_botCommand botCommand = info.commands.get(a);
+                    TLRPC.BotCommand botCommand = info.commands.get(a);
                     if (botCommand != null && botCommand.command != null && botCommand.command.startsWith(command)) {
                         newResult.add("/" + botCommand.command);
                         newResultHelp.add(botCommand.description);
                         newResultUsers.add(messagesController.getUser(info.user_id));
+                        newResultEphemeral.add(botCommand.ephemeral);
                     }
                 }
             }
@@ -1578,6 +1607,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             searchResultCommands = newResult;
             searchResultCommandsHelp = newResultHelp;
             searchResultCommandsUsers = newResultUsers;
+            searchResultCommandsEphemeral = newResultEphemeral;
             contextMedia = false;
             searchResultBotContext = null;
             notifyDataSetChanged();
@@ -1595,6 +1625,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                 searchResultUsernames = null;
                 searchResultUsernamesMap = null;
                 searchResultCommands = null;
+                searchResultCommandsEphemeral = null;
                 quickReplies = null;
                 searchResultCommandsHelp = null;
                 searchResultCommandsUsers = null;
@@ -1607,6 +1638,7 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             searchResultUsernamesMap = null;
             searchResultSuggestions = null;
             searchResultCommands = null;
+            searchResultCommandsEphemeral = null;
             quickReplies = null;
             searchResultCommandsHelp = null;
             searchResultCommandsUsers = null;
@@ -1837,17 +1869,36 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
                 if (i < 0 || i >= searchResultCommands.size()) {
                     return null;
                 }
+
+                final String result;
+                TLRPC.User searchUser = null;
                 if (searchResultCommandsUsers != null && (botsCount != 1 || info instanceof TLRPC.TL_channelFull)) {
                     if (searchResultCommandsUsers.get(i) != null) {
-                        return String.format("%s@%s", searchResultCommands.get(i), searchResultCommandsUsers.get(i) != null ? searchResultCommandsUsers.get(i).username : "");
+                        searchUser = searchResultCommandsUsers.get(i);
+                        result = String.format("%s@%s", searchResultCommands.get(i), searchUser != null ? UserObject.getPublicUsername(searchUser) : "");
                     } else {
-                        return String.format("%s", searchResultCommands.get(i));
+                        result =String.format("%s", searchResultCommands.get(i));
                     }
+                } else {
+                    result = searchResultCommands.get(i);
                 }
-                return searchResultCommands.get(i);
+                if (searchResultCommandsEphemeral != null && searchResultCommandsEphemeral.get(i) == true) {
+                    return new EphemeralCommand(result, searchUser != null ? searchUser.id : 0);
+                }
+                return result;
             }
         }
         return null;
+    }
+
+    public static class EphemeralCommand {
+        public final String command;
+        public final long botUserId;
+
+        public EphemeralCommand(String command, long botUserId) {
+            this.command = command;
+            this.botUserId = botUserId;
+        }
     }
 
     public boolean isLongClickEnabled() {
@@ -1999,7 +2050,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
             } else if (searchResultCommands != null && position >= 0 && position < searchResultCommands.size()) {
                 final String help = searchResultCommandsHelp != null && position >= 0 && position < searchResultCommandsHelp.size() ? searchResultCommandsHelp.get(position) : null;
                 final TLRPC.User user = searchResultCommandsUsers != null && position >= 0 && position < searchResultCommandsUsers.size() ? searchResultCommandsUsers.get(position) : null;
-                cell.setBotCommand(searchResultCommands.get(position), help, user);
+                final boolean ephemeral = searchResultCommandsEphemeral != null && position >= 0 && position < searchResultCommandsEphemeral.size() ? searchResultCommandsEphemeral.get(position) : null;
+                cell.setBotCommand(searchResultCommands.get(position), help, user, ephemeral);
             }
             cell.setDivider(USE_DIVIDERS && (isReversed ? position > 0 : position < getItemCount() - 1));
         }
@@ -2037,7 +2089,9 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
     }
 
     public void setDialogId(long dialogId) {
-        dialog_id = dialogId;
+        if (dialog_id != dialogId) {
+            dialog_id = dialogId;
+        }
     }
 
     public void setUserOrChat(TLRPC.User user, TLRPC.Chat chat) {
@@ -2045,8 +2099,8 @@ public class MentionsAdapter extends RecyclerListView.SelectionAdapter implement
         this.chat = chat;
     }
 
-    public void setSearchInDailogs(boolean searchInDailogs) {
-        this.searchInDailogs = searchInDailogs;
+    public void setSearchInDialogs(boolean searchInDailogs) {
+        this.searchInDialogs = searchInDailogs;
     }
 
     public void setAllowStickers(boolean allowStickers) {

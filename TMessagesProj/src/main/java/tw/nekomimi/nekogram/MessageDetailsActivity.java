@@ -41,8 +41,8 @@ import java.util.Locale;
 
 import tw.nekomimi.nekogram.helpers.MessageHelper;
 import tw.nekomimi.nekogram.helpers.UserHelper;
-import tw.nekomimi.nekogram.helpers.WebAppHelper;
 import tw.nekomimi.nekogram.settings.BaseNekoSettingsActivity;
+import tw.nekomimi.nekogram.tlv.TlViewer;
 
 public class MessageDetailsActivity extends BaseNekoSettingsActivity implements NotificationCenter.NotificationCenterDelegate {
 
@@ -476,7 +476,7 @@ public class MessageDetailsActivity extends BaseNekoSettingsActivity implements 
 
             showDialog(dialog);
         } else if (id == exportRow) {
-            WebAppHelper.openTLViewer(this,
+            TlViewer.openTlViewer(this,
                     messageObject.currentEvent != null ? messageObject.currentEvent : messageObject.messageOwner);
         }
     }

@@ -58,7 +58,6 @@
     <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
-    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
     <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
@@ -551,14 +550,6 @@
         </receiver>
 
         <receiver
-            android:name=".AutoMessageReplyReceiver"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="org.telegram.messenger.ACTION_MESSAGE_REPLY"/>
-            </intent-filter>
-        </receiver>
-
-        <receiver
             android:name=".SmsReceiver"
             android:permission="com.google.android.gms.auth.api.phone.permission.SEND"
             android:exported="true">
@@ -710,6 +701,15 @@
 
         <receiver android:name=".WearReplyReceiver" android:enabled="true" android:exported="false"/>
 
+        <service
+            android:name=".WearAuthListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:pathPrefix="/tg-wear-auth/" />
+            </intent-filter>
+        </service>
+
         <receiver android:name=".StopLiveLocationReceiver" android:enabled="true" android:exported="false"/>
 
         <receiver android:name=".PopupReplyReceiver" android:enabled="true" android:exported="false"/>
@@ -801,12 +801,6 @@
             </intent-filter>
         </service>
 
-        <receiver android:name="tw.nekomimi.nekogram.helpers.ApkInstaller$UpdateReceiver" android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
-            </intent-filter>
-        </receiver>
-
         <receiver android:name="tw.nekomimi.nekogram.SaveToDownloadReceiver" android:exported="false">
             <intent-filter>
                 <action android:name="${applicationId}.CANCEL_SAVE_TO_DOWNLOAD" />
@@ -819,7 +813,7 @@
             android:exported="false"
             android:grantUriPermissions="true"/>
 
-        <meta-data android:name="com.google.android.maps.v2.API_KEY" android:value="AIzaSyCGMAA5lSWvRAgaVtF1-Bh3Di07zePnUbA" />
+        <meta-data android:name="com.google.android.geo.API_KEY" android:value="${MAPS_API_KEY}" />
 
         <uses-library android:name="com.sec.android.app.multiwindow" android:required="false" />
         <meta-data android:name="com.sec.android.support.multiwindow" android:value="true" />
@@ -830,8 +824,24 @@
 
         <meta-data android:name="com.google.android.gms.wallet.api.enabled" android:value="true" />
 
+        <!--
         <meta-data android:name="com.google.android.gms.car.notification.SmallIcon" android:resource="@drawable/ic_player" />
         <meta-data android:name="com.google.android.gms.car.application" android:resource="@xml/automotive_app_desc" />
+
+        <service
+            android:name="org.telegram.messenger.car.TelegramCarAppService"
+            android:exported="true"
+            android:foregroundServiceType="connectedDevice">
+            <intent-filter>
+                <action android:name="androidx.car.app.CarAppService" />
+                <category android:name="androidx.car.app.category.MESSAGING" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="androidx.car.app.minCarApiLevel"
+            android:value="5" />
+        -->
 
         <meta-data android:name="com.google.android.gms.vision.DEPENDENCIES" android:value="face,barcode" />
 
@@ -842,6 +852,21 @@
 
         <meta-data android:name="com.google.firebase.messaging.default_notification_icon" android:resource="@drawable/notification" />
 
+        <provider
+            android:name="io.sentry.android.core.SentryInitProvider"
+            android:authorities="${applicationId}.SentryInitProvider"
+            tools:node="remove" />
+        <provider
+            android:name="io.sentry.android.core.SentryPerformanceProvider"
+            android:authorities="${applicationId}.SentryPerformanceProvider"
+            tools:node="remove" />
+        <provider
+            android:name="io.sentry.ndk.SentryNdkPreloadProvider"
+            android:authorities="${applicationId}.SentryNdkPreloadProvider"
+            tools:node="remove" />
+
+        <!-- https://issuetracker.google.com/issues/476788722 -->
+        <uses-library android:name="org.apache.http.legacy" android:required="false" />
     </application>
 
 </manifest>

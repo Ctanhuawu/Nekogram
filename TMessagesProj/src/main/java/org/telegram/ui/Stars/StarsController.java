@@ -30,6 +30,7 @@ import org.telegram.SQLite.SQLiteDatabase;
 import org.telegram.SQLite.SQLitePreparedStatement;
 import org.telegram.messenger.AccountInstance;
 import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.AppGlobalConfig;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BillingController;
 import org.telegram.messenger.BirthdayController;
@@ -58,6 +59,7 @@ import org.telegram.tgnet.TLRPC;
 import org.telegram.tgnet.Vector;
 import org.telegram.tgnet.tl.TL_account;
 import org.telegram.tgnet.tl.TL_stars;
+import org.telegram.tgnet.tl.TL_update;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.BaseFragment;
 import org.telegram.ui.ActionBar.Theme;
@@ -742,6 +744,18 @@ public class StarsController {
         }, 0).show();
     }
 
+    private boolean isInvoiceBillingDisabled(TLRPC.InputPeer purposePeer) {
+        return AppGlobalConfig.getInstance(currentAccount).starsSpendTopUpInvoiceDisabled.get() && purposePeer != null;
+    }
+
+    public boolean canBuy(TLRPC.InputPeer purposePeer) {
+        if (purposePeer != null && isInvoiceBillingDisabled(purposePeer)) {
+            return BillingController.getInstance().isReady();
+        }
+
+        return true;
+    }
+
     public void buy(
         Activity activity,
         TL_stars.TL_starsTopupOption option,
@@ -762,7 +776,8 @@ public class StarsController {
             return;
         }
 
-        if (BuildVars.useInvoiceBilling() || !BillingController.getInstance().isReady()) {
+        final boolean isInvoiceBillingDisabled = isInvoiceBillingDisabled(purposePeer);
+        if ((BuildVars.useInvoiceBilling() || !BillingController.getInstance().isReady()) && !isInvoiceBillingDisabled) {
             final TLRPC.TL_inputStorePaymentStarsTopup purpose = new TLRPC.TL_inputStorePaymentStarsTopup();
             purpose.stars = option.stars;
             purpose.amount = option.amount;
@@ -826,6 +841,13 @@ public class StarsController {
                 }
             }));
 
+            return;
+        }
+
+        if (!BillingController.getInstance().isReady()) {
+            if (whenDone != null) {
+                whenDone.run(false, "INVOICE DISABLED");
+            }
             return;
         }
 
@@ -1597,14 +1619,14 @@ public class StarsController {
                 });
 
                 long dialogId = 0;
-                if (result.updates.update instanceof TLRPC.TL_updateChannel) {
-                    TLRPC.TL_updateChannel upd = (TLRPC.TL_updateChannel) result.updates.update;
+                if (result.updates.update instanceof TL_update.TL_updateChannel) {
+                    TL_update.TL_updateChannel upd = (TL_update.TL_updateChannel) result.updates.update;
                     dialogId = -upd.channel_id;
                 }
                 if (result.updates.updates != null) {
                     for (int i = 0; i < result.updates.updates.size(); ++i) {
-                        if (result.updates.updates.get(i) instanceof TLRPC.TL_updateChannel) {
-                            TLRPC.TL_updateChannel upd = (TLRPC.TL_updateChannel) result.updates.updates.get(i);
+                        if (result.updates.updates.get(i) instanceof TL_update.TL_updateChannel) {
+                            TL_update.TL_updateChannel upd = (TL_update.TL_updateChannel) result.updates.updates.get(i);
                             dialogId = -upd.channel_id;
                         }
                     }
@@ -4254,7 +4276,7 @@ public class StarsController {
         if (msg == null) return;
         if (msg.messageOwner == null) return;
         final long price = msg.messageOwner.paid_message_stars;
-        if (price <= 0) return;
+        if (price <= 0 || msg.isEphemeral()) return;
 
         final boolean needsUndo = needsUndoButton(msg, price);
 

@@ -21,6 +21,8 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.RectF;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.view.Gravity;
@@ -167,8 +169,6 @@ public class CustomEmojiReactionsWindow {
             }
         });
         attachToParent = type == TYPE_STORY_LIKES || type == TYPE_STICKER_SET_EMOJI || type == TYPE_MESSAGE_EFFECTS || forceAttachToParent;
-
-        // sizeNotifierFrameLayout.setFitsSystemWindows(true);
 
         containerView = new ContainerView(context);
         final int dialogType = reactionsContainerLayout.getWindowType();
@@ -468,6 +468,7 @@ public class CustomEmojiReactionsWindow {
                 }
                 reactionsContainerLayout.setCustomEmojiEnterProgress(Utilities.clamp(enterTransitionProgress, 1f, 0f));
                 if (!enter) {
+                    reactionsContainerLayout.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
                     reactionsContainerLayout.setSkipDraw(false);
                     removeView();
                     Runtime.getRuntime().gc(); //to prevent garbage collection when reopening
@@ -632,6 +633,20 @@ public class CustomEmojiReactionsWindow {
                 selectAnimatedEmojiDialog.emojiGridView.invalidate();
                 selectAnimatedEmojiDialog.emojiGridView.invalidateViews();
                 selectAnimatedEmojiDialog.searchBox.checkInitialization();
+                selectAnimatedEmojiDialog.sendAccessibilityEvent(AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
+                reactionsContainerLayout.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+                View firstEmoji = null;
+                for (int i = 0; i < selectAnimatedEmojiDialog.emojiGridView.getChildCount(); i++) {
+                    if (selectAnimatedEmojiDialog.emojiGridView.getChildAt(i) instanceof SelectAnimatedEmojiDialog.ImageViewEmoji) {
+                        firstEmoji = selectAnimatedEmojiDialog.emojiGridView.getChildAt(i);
+                        break;
+                    }
+                }
+                if (firstEmoji != null) {
+                    firstEmoji.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
+                } else {
+                    selectAnimatedEmojiDialog.performAccessibilityAction(AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null);
+                }
                 if (reactionsContainerLayout.getPullingLeftProgress() > 0) {
                     reactionsContainerLayout.isHiddenNextReaction = false;
                     reactionsContainerLayout.onCustomEmojiWindowOpened();

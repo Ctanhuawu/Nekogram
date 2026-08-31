@@ -1300,6 +1300,66 @@ public sealed class TlGen_MessageAction : TlGen_Object {
     }
   }
 
+  public data class TL_messageActionPollAppendAnswer(
+    public val answer: TlGen_PollAnswer,
+  ) : TlGen_MessageAction() {
+    public override fun serializeToStream(stream: OutputSerializedData) {
+      stream.writeInt32(MAGIC.toInt())
+      answer.serializeToStream(stream)
+    }
+
+    public companion object {
+      public const val MAGIC: UInt = 0x9DA1CD6CU
+    }
+  }
+
+  public data class TL_messageActionPollDeleteAnswer(
+    public val answer: TlGen_PollAnswer,
+  ) : TlGen_MessageAction() {
+    public override fun serializeToStream(stream: OutputSerializedData) {
+      stream.writeInt32(MAGIC.toInt())
+      answer.serializeToStream(stream)
+    }
+
+    public companion object {
+      public const val MAGIC: UInt = 0x399674DCU
+    }
+  }
+
+  public data class TL_messageActionManagedBotCreated(
+    public val bot_id: Long,
+  ) : TlGen_MessageAction() {
+    public override fun serializeToStream(stream: OutputSerializedData) {
+      stream.writeInt32(MAGIC.toInt())
+      stream.writeInt64(bot_id)
+    }
+
+    public companion object {
+      public const val MAGIC: UInt = 0x16605E3EU
+    }
+  }
+
+  public data class TL_messageActionChangeCommunity(
+    public val community_id: Long?,
+  ) : TlGen_MessageAction() {
+    internal val flags: UInt
+      get() {
+        var result = 0U
+        if (community_id != null) result = result or 1U
+        return result
+      }
+
+    public override fun serializeToStream(stream: OutputSerializedData) {
+      stream.writeInt32(MAGIC.toInt())
+      stream.writeInt32(flags.toInt())
+      community_id?.let { stream.writeInt64(it) }
+    }
+
+    public companion object {
+      public const val MAGIC: UInt = 0x5D20BAE8U
+    }
+  }
+
   public data class TL_messageActionChatCreate_layer132(
     public val title: String,
     public val users: List<Int>,

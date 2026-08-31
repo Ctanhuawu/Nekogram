@@ -8,7 +8,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Canvas;
 import android.graphics.Paint;
-import android.graphics.Path;
 import android.net.Uri;
 import android.util.TypedValue;
 import android.view.Gravity;
@@ -28,8 +27,6 @@ import org.telegram.messenger.R;
 import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.UserObject;
 import org.telegram.messenger.Utilities;
-import org.telegram.tgnet.OutputSerializedData;
-import org.telegram.tgnet.TLObject;
 import org.telegram.ui.ActionBar.ActionBarMenuItem;
 import org.telegram.ui.ActionBar.ActionBarMenuSubItem;
 import org.telegram.ui.ActionBar.ActionBarPopupWindow;
@@ -54,6 +51,7 @@ import java.util.List;
 import java.util.Set;
 
 import tw.nekomimi.nekogram.DatacenterPopupWrapper;
+import tw.nekomimi.nekogram.tlv.TlViewer;
 
 public class PopupHelper {
 
@@ -131,67 +129,25 @@ public class PopupHelper {
             ActionBarMenuSubItem subItem = ActionBarMenuItem.addItem(popupLayout, R.drawable.msg_stories_caption, LocaleController.getString(R.string.ViewAsJson), false, fragment.getResourceProvider());
             subItem.setOnClickListener(v -> {
                 popupWindow.dismiss();
-                WebAppHelper.openTLViewer(fragment, getPeerAndFull(fragment, did));
+                var messagesController = fragment.getMessagesController();
+                var peer = did > 0 ? messagesController.getUser(did) : messagesController.getChat(-did);
+                var peerFull = did > 0 ? messagesController.getUserFull(did) : messagesController.getChatFull(-did);
+                if (peer == null) {
+                    return;
+                }
+                if (peerFull == null) {
+                    TlViewer.openTlViewer(fragment, peer);
+                } else {
+                    TlViewer.openTlViewer(fragment, peer, peerFull);
+                }
             });
         }
         popupLayout.setParentWindow(popupWindow);
     }
 
-    public static TLObject getPeerAndFull(BaseFragment fragment, long peerId) {
-        var messagesController = fragment.getMessagesController();
-        var mediaDataController = fragment.getMediaDataController();
-        TLObject peer;
-        TLObject peerFull;
-        TLObject info;
-        if (peerId > 0) {
-            peer = messagesController.getUser(peerId);
-            peerFull = messagesController.getUserFull(peerId);
-            info = mediaDataController.getBotInfoCached(peerId, peerId);
-        } else {
-            peer = messagesController.getChat(-peerId);
-            peerFull = messagesController.getChatFull(-peerId);
-            info = null;
-        }
-        if (peer == null) {
-            return null;
-        }
-        return new TLObject() {
-            @Override
-            public void serializeToStream(OutputSerializedData stream) {
-                stream.writeInt32(0x1cb5c415);
-                var count = 1;
-                if (peerFull != null) count++;
-                if (info != null) count++;
-                stream.writeInt32(count);
-                peer.serializeToStream(stream);
-                if (peerFull != null) {
-                    peerFull.serializeToStream(stream);
-                }
-                if (info != null) {
-                    info.serializeToStream(stream);
-                }
-            }
-        };
-    }
-
-
     public static void showCopyPopup(BaseFragment fragment, CharSequence title, View anchorView, float x, float y, Runnable callback) {
         Context context = fragment.getParentActivity();
-        ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(context, fragment.getResourceProvider()) {
-            final Path path = new Path();
-
-            @Override
-            protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
-                canvas.save();
-                path.rewind();
-                AndroidUtilities.rectTmp.set(child.getLeft(), child.getTop(), child.getRight(), child.getBottom());
-                path.addRoundRect(AndroidUtilities.rectTmp, AndroidUtilities.dp(6), AndroidUtilities.dp(6), Path.Direction.CW);
-                canvas.clipPath(path);
-                boolean draw = super.drawChild(canvas, child, drawingTime);
-                canvas.restore();
-                return draw;
-            }
-        };
+        ActionBarPopupWindow.ActionBarPopupWindowLayout popupLayout = new ActionBarPopupWindow.ActionBarPopupWindowLayout(context, R.drawable.popup_fixed_alert4, fragment.getResourceProvider());
         popupLayout.setFitItems(true);
         ActionBarPopupWindow popupWindow = AlertsCreator.createSimplePopup(fragment, popupLayout, anchorView, x, y);
         ActionBarMenuItem.addItem(popupLayout, R.drawable.msg_copy, title, false, fragment.getResourceProvider()).setOnClickListener(v -> {

@@ -83,6 +83,23 @@
   <init>(com.google.android.exoplayer2.upstream.DataSource$Factory);
 }
 
+# Huawei Services
+-keep class com.huawei.hianalytics.**{ *; }
+-keep class com.huawei.updatesdk.**{ *; }
+-keep class com.huawei.hms.**{ *; }
+
+# Don't warn about checkerframework and Kotlin annotations
+-dontwarn org.checkerframework.**
+-dontwarn javax.annotation.**
+
+-keep class io.nano.tex.** {*;}
+
+# JLatexMath: macro/atom classes are loaded reflectively by Class.forName
+-keep class org.scilab.forge.jlatexmath.** { *; }
+-keep class ru.noties.jlatexmath.** { *; }
+-dontwarn org.scilab.forge.jlatexmath.**
+
+
 # Used by AtomicReferenceFieldUpdater and sun.misc.Unsafe
 -keepclassmembers class com.google.common.util.concurrent.AbstractFuture** {
   *** waiters;
@@ -107,8 +124,7 @@
 # Gson uses generic type information stored in a class file when working with fields. Proguard
 # removes such information by default, so configure it to keep all of it.
 -keepattributes Signature,InnerClasses,EnclosingMethod
-
--keep class org.telegram.messenger.voip.* { *; }
+-keep class org.telegram.messenger.voip.* { *; }
 -keep class org.telegram.messenger.AnimatedFileDrawableStream { <methods>; }
 -keep class org.telegram.SQLite.SQLiteException { <methods>; }
 -keep class org.telegram.tgnet.ConnectionsManager { <methods>; }
@@ -155,10 +171,6 @@
 -dontwarn com.google.j2objc.annotations.ReflectionSupport
 -dontwarn com.google.j2objc.annotations.RetainedWith
 -dontwarn com.google.j2objc.annotations.Weak
--dontwarn android.support.annotation.IntRange
--dontwarn android.support.annotation.NonNull
--dontwarn android.support.annotation.Nullable
--dontwarn android.support.annotation.RequiresApi
--dontwarn android.support.annotation.Size
--dontwarn android.support.annotation.VisibleForTesting
+-dontwarn android.support.annotation.*
 -dontwarn android.support.v4.app.NotificationCompat$Builder
+-dontwarn androidx.compose.**

@@ -198,7 +198,7 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
 
     private void checkHolderPositionsAndVisibility(ButtonHolder holder) {
         final float visibility = totalVisibilityFactor * holder.visibilityAnimator.getFloatValue();
-        final float offsetY = dp(54) * (1f - visibility);
+        final float offsetY = -dp(54) * (1f - visibility);
         float offsetX = getMeasuredWidth() / 2f * (1f - AnimatorUtils.DECELERATE_INTERPOLATOR.getInterpolation(visibility));
         if (holder == replyButton || holder == selectButton) {
             offsetX *= -1;
@@ -215,8 +215,8 @@ public class ChatActivityActionsButtonsLayout extends LinearLayout {
         public TextView textView;
         public ActionBarMenuItem optionsView;
 
-        public BoolAnimator visibilityAnimator = new BoolAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 350, true);
-        public BoolAnimator enabledAnimator = new BoolAnimator(1, this, CubicBezierInterpolator.EASE_OUT_QUINT, 350, true);
+        public BoolAnimator visibilityAnimator = new BoolAnimator(0, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320, true);
+        public BoolAnimator enabledAnimator = new BoolAnimator(1, this, CubicBezierInterpolator.EASE_OUT_QUINT, 320, true);
 
         @Override
         public void onFactorChanged(int id, float factor, float fraction, FactorAnimator callee) {

@@ -52,24 +52,28 @@ import org.telegram.messenger.FileLog;
 import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.MediaDataController;
 import org.telegram.messenger.R;
+import org.telegram.messenger.UserConfig;
 import org.telegram.messenger.utils.CopyUtilities;
 import org.telegram.tgnet.TLRPC;
 import org.telegram.ui.ActionBar.AlertDialog;
 import org.telegram.ui.ActionBar.AlertDialogDecor;
+import org.telegram.ui.ActionBar.BaseFragment;
+import org.telegram.ui.ActionBar.FloatingToolbar;
 import org.telegram.ui.ActionBar.Theme;
+import org.telegram.ui.LaunchActivity;
 
 import java.util.List;
 
-public class EditTextCaption extends EditTextBoldCursor {
+public class EditTextCaption extends EditTextBoldCursor implements FloatingToolbar.StyleDelegate {
 
     private static final int ACCESSIBILITY_ACTION_SHARE = 0x10000000;
 
     private String caption;
     private StaticLayout captionLayout;
+    private Text rightText;
     private int userNameLength;
     private int xOffset;
     private int yOffset;
-    private int triesCount = 0;
     private boolean copyPasteShowed;
     private int hintColor;
     private EditTextCaptionDelegate delegate;
@@ -131,6 +135,12 @@ public class EditTextCaption extends EditTextBoldCursor {
 
     public void setDelegate(EditTextCaptionDelegate editTextCaptionDelegate) {
         delegate = editTextCaptionDelegate;
+    }
+
+    protected void notifySpansChanged() {
+        if (delegate != null) {
+            delegate.onSpansChanged();
+        }
     }
 
     public void setAllowTextEntitiesIntersection(boolean value) {
@@ -390,6 +400,47 @@ public class EditTextCaption extends EditTextBoldCursor {
         editText.setSelection(0, editText.getText().length());
     }
 
+    // Toggle an inline style over the current selection, mirroring a formatting button: if the style
+    // already fully covers the selection it's removed, otherwise it's added. Mono is kept mutually
+    // exclusive with every other inline style, and sub/superscript exclude each other (same rules the
+    // rich editor uses), so there's no conflict between mono and the rest.
+    public void toggleStyleForSelection(int flag) {
+        final Editable editable = getText();
+        if (editable == null) {
+            return;
+        }
+        int start = getSelectionStart();
+        int end = getSelectionEnd();
+        if (start < 0 || end < 0) {
+            return;
+        }
+        if (start > end) {
+            final int tmp = start;
+            start = end;
+            end = tmp;
+        }
+        if (start >= end) {
+            return;
+        }
+        final boolean add = (getCurrentStyle(start, end) & flag) == 0;
+        if (add) {
+            int clearMask;
+            if (flag == TextStyleSpan.FLAG_STYLE_MONO) {
+                clearMask = TextStyleSpan.FLAG_STYLE_BOLD | TextStyleSpan.FLAG_STYLE_ITALIC | TextStyleSpan.FLAG_STYLE_UNDERLINE
+                    | TextStyleSpan.FLAG_STYLE_STRIKE | TextStyleSpan.FLAG_STYLE_SPOILER
+                    | TextStyleSpan.FLAG_STYLE_SUBSCRIPT | TextStyleSpan.FLAG_STYLE_SUPERSCRIPT;
+            } else {
+                clearMask = TextStyleSpan.FLAG_STYLE_MONO;
+                if (flag == TextStyleSpan.FLAG_STYLE_SUBSCRIPT) clearMask |= TextStyleSpan.FLAG_STYLE_SUPERSCRIPT;
+                else if (flag == TextStyleSpan.FLAG_STYLE_SUPERSCRIPT) clearMask |= TextStyleSpan.FLAG_STYLE_SUBSCRIPT;
+            }
+            removeStyle(clearMask, start, end);
+            addStyle(flag, start, end);
+        } else {
+            removeStyle(flag, start, end);
+        }
+    }
+
     public void makeSelectedQuote() {
         makeSelectedQuote(false);
     }
@@ -446,6 +497,32 @@ public class EditTextCaption extends EditTextBoldCursor {
                 delegate.onSpansChanged();
             }
         }, () -> {}, resourcesProvider);
+    }
+
+    public void translateSelected() {
+        int start, end;
+        if (selectionStart >= 0 && selectionEnd >= 0) {
+            start = selectionStart;
+            end = selectionEnd;
+            selectionStart = selectionEnd = -1;
+        } else {
+            start = getSelectionStart();
+            end = getSelectionEnd();
+        }
+
+        final CharSequence text = getText().subSequence(start, end);
+
+        final BaseFragment lastFragment = LaunchActivity.getSafeLastFragment();
+
+        new TranslateAlert3(getContext(), lastFragment != null ? lastFragment.getResourceProvider() : null)
+            .setText(text)
+            .setOnUse(translatedText -> {
+                getText().replace(start, end, translatedText);
+                setSelection(start, start + translatedText.length());
+            })
+            .show();
+
+        setSelection(start, end);
     }
 
     public void makeSelectedUrl() {
@@ -590,10 +667,9 @@ public class EditTextCaption extends EditTextBoldCursor {
                 }
             }
             try {
-                editable.setSpan(new URLSpanReplacement(editText.getText().toString()), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            } catch (Exception ignore) {
-
-            }
+                final String url = editText.getText().toString().trim();
+                editable.setSpan(new URLSpanReplacement(url), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            } catch (Exception ignore) {}
             if (delegate != null) {
                 delegate.onSpansChanged();
             }
@@ -645,6 +721,131 @@ public class EditTextCaption extends EditTextBoldCursor {
     public void setSelectionOverride(int start, int end) {
         selectionStart = start;
         selectionEnd = end;
+    }
+
+    private static final int[] STYLE_FLAGS = {
+        TextStyleSpan.FLAG_STYLE_BOLD,
+        TextStyleSpan.FLAG_STYLE_ITALIC,
+        TextStyleSpan.FLAG_STYLE_MONO,
+        TextStyleSpan.FLAG_STYLE_STRIKE,
+        TextStyleSpan.FLAG_STYLE_UNDERLINE,
+        TextStyleSpan.FLAG_STYLE_SPOILER,
+        TextStyleSpan.FLAG_STYLE_SUBSCRIPT,
+        TextStyleSpan.FLAG_STYLE_SUPERSCRIPT,
+    };
+
+    private static int spanStyleFlags(TextStyleSpan span) {
+        int flags = span.getStyleFlags();
+        if ((flags & TextStyleSpan.FLAG_STYLE_SPOILER_REVEALED) != 0) {
+            flags |= TextStyleSpan.FLAG_STYLE_SPOILER;
+        }
+        return flags;
+    }
+
+    @Override
+    public int getCurrentStyle(int start, int end) {
+        Editable editable = getText();
+        if (editable == null) {
+            return 0;
+        }
+        start = Math.max(0, start);
+        end = Math.min(end, editable.length());
+        if (start < 0 || end < 0 || start >= end) {
+            return 0;
+        }
+        TextStyleSpan[] spans = editable.getSpans(start, end, TextStyleSpan.class);
+        int result = 0;
+        for (int flag : STYLE_FLAGS) {
+            // spans aren't returned in position order, so loop to a fixpoint extending
+            // the covered range by any span of this flag that touches it
+            int covered = start;
+            boolean advanced = true;
+            while (advanced && covered < end) {
+                advanced = false;
+                for (int a = 0; a < spans.length; ++a) {
+                    if ((spanStyleFlags(spans[a]) & flag) == 0) {
+                        continue;
+                    }
+                    int spanStart = editable.getSpanStart(spans[a]);
+                    int spanEnd = editable.getSpanEnd(spans[a]);
+                    if (spanStart <= covered && spanEnd > covered) {
+                        covered = spanEnd;
+                        advanced = true;
+                    }
+                }
+            }
+            if (covered >= end) {
+                result |= flag;
+            }
+        }
+        return result;
+    }
+
+    @Override
+    public void addStyle(int flag, int start, int end) {
+        Editable editable = getText();
+        if (editable == null || start < 0 || end < 0 || start >= end) {
+            return;
+        }
+        end = Math.min(end, editable.length());
+        if (start >= end) {
+            return;
+        }
+        TextStyleSpan.TextStyleRun run = new TextStyleSpan.TextStyleRun();
+        run.flags = flag;
+        MediaDataController.addStyleToText(new TextStyleSpan(run), start, end, editable, true);
+        if ((flag & TextStyleSpan.FLAG_STYLE_SPOILER) != 0) {
+            invalidateSpoilers();
+        }
+        if (delegate != null) {
+            delegate.onSpansChanged();
+        }
+    }
+
+    @Override
+    public void removeStyle(int flag, int start, int end) {
+        Editable editable = getText();
+        if (editable == null || start < 0 || end < 0 || start >= end) {
+            return;
+        }
+        end = Math.min(end, editable.length());
+        int removeMask = flag;
+        if ((flag & TextStyleSpan.FLAG_STYLE_SPOILER) != 0) {
+            removeMask |= TextStyleSpan.FLAG_STYLE_SPOILER_REVEALED;
+        }
+        TextStyleSpan[] spans = editable.getSpans(start, end, TextStyleSpan.class);
+        for (int a = 0; a < spans.length; ++a) {
+            TextStyleSpan span = spans[a];
+            int spanFlags = span.getStyleFlags();
+            if ((spanFlags & removeMask) == 0) {
+                continue;
+            }
+            int spanStart = editable.getSpanStart(span);
+            int spanEnd = editable.getSpanEnd(span);
+            editable.removeSpan(span);
+            if (spanStart < start) {
+                TextStyleSpan.TextStyleRun run = new TextStyleSpan.TextStyleRun(span.getTextStyleRun());
+                editable.setSpan(new TextStyleSpan(run), spanStart, start, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            if (spanEnd > end) {
+                TextStyleSpan.TextStyleRun run = new TextStyleSpan.TextStyleRun(span.getTextStyleRun());
+                editable.setSpan(new TextStyleSpan(run), end, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            int interStart = Math.max(spanStart, start);
+            int interEnd = Math.min(spanEnd, end);
+            int newFlags = spanFlags & ~removeMask;
+            if (newFlags != 0 && interStart < interEnd) {
+                TextStyleSpan.TextStyleRun run = new TextStyleSpan.TextStyleRun(span.getTextStyleRun());
+                run.flags = newFlags;
+                editable.setSpan(new TextStyleSpan(run), interStart, interEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+        }
+        if ((flag & TextStyleSpan.FLAG_STYLE_SPOILER) != 0) {
+            invalidateSpoilers();
+        }
+        if (delegate != null) {
+            delegate.onSpansChanged();
+        }
     }
 
     private void applyTextStyleToSelection(TextStyleSpan span) {
@@ -811,6 +1012,9 @@ public class EditTextCaption extends EditTextBoldCursor {
         } else if (itemId == R.id.menu_date) {
             makeSelectedDate();
             return true;
+        } else if (itemId == R.id.menu_translate) {
+            translateSelected();
+            return true;
         }
         return false;
     }
@@ -905,7 +1109,18 @@ public class EditTextCaption extends EditTextBoldCursor {
         } catch (Exception e) {
             FileLog.e(e);
         }
+        if (rightText != null && length() != 0) {
+            final Layout layout = getLayout();
+            if (layout != null && layout.getLineCount() > 0) {
+                final float right = layout.getLineRight(0);
+                rightText.draw(canvas, right, getHeight() / 2f + dp(1), hintColor, 1.0f);
+            }
+        }
         canvas.restore();
+    }
+
+    public void setRightText(CharSequence text) {
+        this.rightText = new Text(text, 16, getTypeface());
     }
 
     @Override

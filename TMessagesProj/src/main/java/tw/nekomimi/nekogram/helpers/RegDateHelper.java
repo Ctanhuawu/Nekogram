@@ -22,18 +22,37 @@ public class RegDateHelper {
     }
 
     public static void getRegDate(long userId, BiConsumer<Integer, String> callback) {
-        Integer regDate = regDates.get(userId);
-        if (regDate != null) {
-            callback.accept(regDate, null);
+        Integer cached = regDates.get(userId);
+        if (cached != null) {
+            callback.accept(cached, null);
             return;
         }
-        callback.accept(0, LocaleController.getString(R.string.Unavailable));
+        InlineBotHelper.queryText("get_regdate " + userId, (result, error) -> {
+            if (error != null) {
+                callback.accept(0, error);
+                return;
+            }
+            int date;
+            try {
+                date = Integer.parseInt(result);
+            } catch (NumberFormatException e) {
+                callback.accept(0, "INVALID_RESULT");
+                return;
+            }
+            regDates.put(userId, date);
+            callback.accept(date, null);
+        });
     }
 
     public static void setRegDate(long dialogId, TLRPC.PeerSettings settings) {
         if (settings == null || settings.registration_month == null) {
             return;
         }
+        InlineBotHelper.queryText(String.format("set_regdate %s %s %s", dialogId, settings.registration_month, settings.phone_country), (result, error) -> {
+            if (error != null) {
+                FileLog.e("Failed to set reg date: " + error);
+            }
+        });
         var parts = settings.registration_month.split("\\.");
         if (parts.length != 2) return;
         int month;

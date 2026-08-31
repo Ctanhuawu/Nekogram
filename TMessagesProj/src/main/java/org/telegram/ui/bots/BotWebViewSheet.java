@@ -114,11 +114,13 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import tw.nekomimi.nekogram.helpers.EntitiesHelper;
-import tw.nekomimi.nekogram.helpers.WebAppHelper;
-
 public class BotWebViewSheet extends Dialog implements NotificationCenter.NotificationCenterDelegate, BottomSheetTabsOverlay.Sheet {
-    public final static int TYPE_WEB_VIEW_BUTTON = 0, TYPE_SIMPLE_WEB_VIEW_BUTTON = 1, TYPE_BOT_MENU_BUTTON = 2, TYPE_WEB_VIEW_BOT_APP = 3, TYPE_WEB_VIEW_BOT_MAIN = 4;
+    public final static int TYPE_WEB_VIEW_BUTTON = 0,
+            TYPE_SIMPLE_WEB_VIEW_BUTTON = 1,
+            TYPE_BOT_MENU_BUTTON = 2,
+            TYPE_WEB_VIEW_BOT_APP = 3,
+            TYPE_WEB_VIEW_BOT_MAIN = 4,
+            TYPE_WEB_VIEW_GUARD = 5;
 
     public final static int FLAG_FROM_INLINE_SWITCH = 1;
     public final static int FLAG_FROM_SIDE_MENU = 2;
@@ -197,8 +199,6 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
     private ChatAttachAlertBotWebViewLayout.WebProgressView progressView;
     private Theme.ResourcesProvider resourcesProvider;
     private boolean ignoreLayout;
-
-    private String textToCopy;
 
     private int currentAccount;
     private long botId;
@@ -530,11 +530,6 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         webViewContainer.setOnVerifiedAge(onVerifiedAge);
         webViewContainer.setDelegate(new BotWebViewContainer.Delegate() {
             private boolean sentWebViewData;
-
-            @Override
-            public void onGetTextToCopy(String text) {
-                textToCopy = text;
-            }
 
             @Override
             public void onCloseRequested(Runnable callback) {
@@ -1017,6 +1012,16 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         }
     }
 
+    public boolean isGuardBotTab(long peerId, long queryId) {
+        if (requestProps != null && requestProps.type == BotWebViewAttachedSheet.TYPE_WEB_VIEW_GUARD && (requestProps.peerId == peerId || requestProps.peerId == 0)) {
+            if (requestProps.response instanceof TLRPC.TL_webViewResultUrl) {
+                final long bQueryId = ((TLRPC.TL_webViewResultUrl) requestProps.response).query_id;
+                return bQueryId == queryId;
+            }
+        }
+        return false;
+    }
+
     private void relayout() {
         updateFullscreenLayout();
     }
@@ -1095,7 +1100,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         Window window = getWindow();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        } else {
             window.addFlags(WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
         }
         window.setWindowAnimations(R.style.DialogNoAnimation);
@@ -1123,36 +1128,34 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
 
         windowView.setFitsSystemWindows(true);
         windowView.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            windowView.setOnApplyWindowInsetsListener((v, insets) -> {
-                final WindowInsetsCompat insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets, v);
-                final androidx.core.graphics.Insets navInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.navigationBars());
-                this.navInsets.set(navInsets.left, navInsets.top, navInsets.right, navInsets.bottom);
-                final androidx.core.graphics.Insets cutoutInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.systemBars());
-                this.insets.set(
-                    Math.max(cutoutInsets.left,   insets.getStableInsetLeft()),
-                    Math.max(cutoutInsets.top,    insets.getStableInsetTop()),
-                    Math.max(cutoutInsets.right,  insets.getStableInsetRight()),
-                    Math.max(cutoutInsets.bottom, insets.getStableInsetBottom())
-                );
-                if (Build.VERSION.SDK_INT <= 28) {
-                    this.insets.top = Math.max(this.insets.top, AndroidUtilities.getStatusBarHeight(getContext()));
-                }
-                final androidx.core.graphics.Insets keyboardInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.ime());
-                final int keyboardHeight = keyboardInsets.bottom;
-                if (keyboardHeight > this.insets.bottom && keyboardHeight > dp(20)) {
-                    this.keyboardInset = keyboardHeight;
-                } else {
-                    this.keyboardInset = 0;
-                }
-                updateFullscreenLayout();
-                if (Build.VERSION.SDK_INT >= 30) {
-                    return WindowInsets.CONSUMED;
-                } else {
-                    return insets.consumeSystemWindowInsets();
-                }
-            });
-        }
+        windowView.setOnApplyWindowInsetsListener((v, insets) -> {
+            final WindowInsetsCompat insetsCompat = WindowInsetsCompat.toWindowInsetsCompat(insets, v);
+            final androidx.core.graphics.Insets navInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.navigationBars());
+            this.navInsets.set(navInsets.left, navInsets.top, navInsets.right, navInsets.bottom);
+            final androidx.core.graphics.Insets cutoutInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.displayCutout() | WindowInsetsCompat.Type.systemBars());
+            this.insets.set(
+                Math.max(cutoutInsets.left, insets.getStableInsetLeft()),
+                Math.max(cutoutInsets.top, insets.getStableInsetTop()),
+                Math.max(cutoutInsets.right, insets.getStableInsetRight()),
+                Math.max(cutoutInsets.bottom, insets.getStableInsetBottom())
+            );
+            if (Build.VERSION.SDK_INT <= 28) {
+                this.insets.top = Math.max(this.insets.top, AndroidUtilities.getStatusBarHeight(getContext()));
+            }
+            final androidx.core.graphics.Insets keyboardInsets = insetsCompat.getInsets(WindowInsetsCompat.Type.ime());
+            final int keyboardHeight = keyboardInsets.bottom;
+            if (keyboardHeight > this.insets.bottom && keyboardHeight > dp(20)) {
+                this.keyboardInset = keyboardHeight;
+            } else {
+                this.keyboardInset = 0;
+            }
+            updateFullscreenLayout();
+            if (Build.VERSION.SDK_INT >= 30) {
+                return WindowInsets.CONSUMED;
+            } else {
+                return insets.consumeSystemWindowInsets();
+            }
+        });
         if (fullscreen && !(botButtons != null && botButtons.getTotalHeight() > 0)) {
             windowView.setSystemUiVisibility(windowView.getSystemUiVisibility() | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION);
         } else {
@@ -1354,10 +1357,9 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
         this.silent = props.silent;
         this.buttonText = props.buttonText;
         this.currentWebApp = props.app;
-        this.textToCopy = null;
 
         final TLRPC.User userbot = MessagesController.getInstance(currentAccount).getUser(botId);
-        CharSequence title = WebAppHelper.isInternalBot(props) ? WebAppHelper.getInternalBotName(props) : UserObject.getUserName(userbot);
+        CharSequence title = UserObject.getUserName(userbot);
         try {
             TextPaint tp = new TextPaint();
             tp.setTextSize(dp(20));
@@ -1610,7 +1612,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                     req.bot = MessagesController.getInstance(currentAccount).getInputUser(props.botId);
                     req.platform = "android";
                     req.peer = fragment instanceof ChatActivity ? ((ChatActivity) fragment).getCurrentUser() != null ? MessagesController.getInputPeer(((ChatActivity) fragment).getCurrentUser()) : MessagesController.getInputPeer(((ChatActivity) fragment).getCurrentChat())
-                            : MessagesController.getInputPeer(props.botUser);
+                            : MessagesController.getInstance(currentAccount).getInputPeer(props.peerId);
                     req.compact = props.compact;
                     req.fullscreen = props.fullscreen;
 
@@ -1634,6 +1636,24 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                         }
                     }), ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
                     break;
+                }
+                case TYPE_WEB_VIEW_GUARD: {
+                    TLRPC.TL_messages_requestChatJoinWebView req = new TLRPC.TL_messages_requestChatJoinWebView();
+                    req.platform = "android";
+                    req.query_id = props.queryId;
+                    if (themeParams != null) {
+                        req.theme_params = new TLRPC.TL_dataJSON();
+                        req.theme_params.data = themeParams.toString();
+                    }
+
+                    ConnectionsManager.getInstance(currentAccount).sendRequestTyped(req, AndroidUtilities::runOnUIThread, (response2, error2) -> {
+                        if (error2 != null) {
+
+                        } else if (requestProps != null) {
+                            requestProps.applyResponse(response2);
+                            loadFromResponse();
+                        }
+                    }, ConnectionsManager.RequestFlagInvokeAfter | ConnectionsManager.RequestFlagFailOnServerErrors);
                 }
             }
         }
@@ -1673,7 +1693,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             o.addGap();
         }
         o
-            .addIf(onVerifiedAge == null && !WebAppHelper.isInternalBot(requestProps), R.drawable.msg_bot, LocaleController.getString(R.string.BotWebViewOpenBot), () -> {
+            .addIf(onVerifiedAge == null, R.drawable.msg_bot, LocaleController.getString(R.string.BotWebViewOpenBot), () -> {
                 if (parentActivity instanceof LaunchActivity) {
                     ((LaunchActivity) parentActivity).presentFragment(ChatActivity.of(botId));
                 }
@@ -1696,16 +1716,10 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
                 webViewContainer.loadFlickerAndSettingsItem(currentAccount, botId, null);
                 webViewContainer.reload();
             })
-            .addIf(WebAppHelper.isInternalBot(requestProps) && !TextUtils.isEmpty(textToCopy), R.drawable.msg_copy, LocaleController.getString(R.string.Copy), () -> {
-                if (textToCopy != null) {
-                    AndroidUtilities.addToClipboard(requestProps.internalType == WebAppHelper.INTERNAL_BOT_TLV ? EntitiesHelper.warpInLanguageSpan(textToCopy, "json") : textToCopy);
-                    showBulletin(bulletinFactory -> bulletinFactory.createCopyBulletin(LocaleController.getString(R.string.TextCopied)));
-                }
-            })
-            .addIf(onVerifiedAge == null && !WebAppHelper.isInternalBot(requestProps) && userbot != null && userbot.bot_has_main_app, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut), () -> {
+            .addIf(onVerifiedAge == null && userbot != null && userbot.bot_has_main_app, R.drawable.msg_home, LocaleController.getString(R.string.AddShortcut), () -> {
                 MediaDataController.getInstance(currentAccount).installShortcut(botId, MediaDataController.SHORTCUT_TYPE_ATTACHED_BOT);
             })
-            .addIf(onVerifiedAge == null && !WebAppHelper.isInternalBot(requestProps), R.drawable.menu_intro, LocaleController.getString(R.string.BotWebViewToS), () -> {
+            .addIf(onVerifiedAge == null, R.drawable.menu_intro, LocaleController.getString(R.string.BotWebViewToS), () -> {
                 Browser.openUrl(getContext(), LocaleController.getString(R.string.BotWebViewToSLink));
             })
             .addIf(onVerifiedAge == null && currentBot != null && (currentBot.show_in_side_menu || currentBot.show_in_attach_menu), R.drawable.msg_delete, LocaleController.getString(R.string.BotWebViewDeleteBot), () -> {
@@ -1883,7 +1897,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
             if (user != null && user.photo != null) {
                 File f = FileLoader.getInstance(currentAccount).getPathToAttach(user.photo.photo_small, true);
                 if (!f.exists()) {
-                    MediaDataController.getInstance(currentAccount).preloadImage(ImageLocation.getForUser(user, ImageLocation.TYPE_SMALL), FileLoader.PRIORITY_LOW);
+                    MediaDataController.getInstance(currentAccount).preloadImage(ImageLocation.getForUser(currentAccount, user, ImageLocation.TYPE_SMALL), FileLoader.PRIORITY_LOW);
                 }
             }
         }
@@ -2639,7 +2653,7 @@ public class BotWebViewSheet extends Dialog implements NotificationCenter.Notifi
 
             clipPath.rewind();
             float radius = dp(16) * (AndroidUtilities.isTablet() ? 1f : 1f - actionBarTransitionProgress);
-            final float r = lerp(radius, dp(10), progress);
+            final float r = lerp(radius, dp(18), progress);
             clipPath.addRoundRect(clipRect, r, r, Path.Direction.CW);
             canvas.clipPath(clipPath);
             canvas.drawPaint(backgroundPaint);

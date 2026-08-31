@@ -139,7 +139,6 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -511,11 +510,16 @@ public class Theme {
             } else {
                 idx2 = 0;
             }
-            boolean forceSetColor = false;
+            int color;
+            if (isSelected) {
+                color = getColor(isOut ? key_chat_outBubbleSelected : key_chat_inBubbleSelected);
+            } else {
+                color = getColor(isOut ? key_chat_outBubble : key_chat_inBubble);
+            }
 
             boolean drawWithShadow = gradientShader == null && !isSelected && !isCrossfadeBackground;
             int shadowColor = getColor(isOut ? key_chat_outBubbleShadow : key_chat_inBubbleShadow);
-            if (lastDrawWithShadow != drawWithShadow || currentBackgroundDrawableRadius[idx2][idx] != newRad || (drawWithShadow && shadowDrawableColor[idx] != shadowColor)) {
+            if (lastDrawWithShadow != drawWithShadow || currentBackgroundDrawableRadius[idx2][idx] != newRad || (drawWithShadow && shadowDrawableColor[idx] != shadowColor) || backgroundDrawableColor[idx2][idx] != color) {
                 currentBackgroundDrawableRadius[idx2][idx] = newRad;
                 try {
                     Bitmap bitmap = Bitmap.createBitmap(dp(50), dp(40), Bitmap.Config.ARGB_8888);
@@ -550,28 +554,18 @@ public class Theme {
                     }
 
                     Paint shadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-                    shadowPaint.setColor(0xffffffff);
+                    shadowPaint.setColor(color);
                     setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
                     draw(canvas, shadowPaint);
 
-                    backgroundDrawable[idx2][idx] = new NinePatchDrawable(bitmap, getByteBuffer(bitmap.getWidth() / 2 - 1, bitmap.getWidth() / 2 + 1, bitmap.getHeight() / 2 - 1, bitmap.getHeight() / 2 + 1).array(), new Rect(), null);
-                    forceSetColor = true;
+                    backgroundDrawable[idx2][idx] = new NinePatchDrawable(bitmap, getByteBuffer(bitmap.getWidth() / 2 - 1, bitmap.getWidth() / 2 + 1, bitmap.getHeight() / 2 - 1, bitmap.getHeight() / 2 + 1, color).array(), new Rect(), null);
                     setBounds(backupRect);
                 } catch (Throwable ignore) {
 
                 }
             }
             lastDrawWithShadow = drawWithShadow;
-            int color;
-            if (isSelected) {
-                color = getColor(isOut ? key_chat_outBubbleSelected : key_chat_inBubbleSelected);
-            } else {
-                color = getColor(isOut ? key_chat_outBubble : key_chat_inBubble);
-            }
-            if (backgroundDrawable[idx2][idx] != null && (backgroundDrawableColor[idx2][idx] != color || forceSetColor)) {
-                backgroundDrawable[idx2][idx].setColorFilter(new PorterDuffColorFilter(color, PorterDuff.Mode.MULTIPLY));
-                backgroundDrawableColor[idx2][idx] = color;
-            }
+            backgroundDrawableColor[idx2][idx] = color;
             return backgroundDrawable[idx2][idx];
         }
 
@@ -587,7 +581,7 @@ public class Theme {
                 setBounds(0, 0, bitmap.getWidth(), bitmap.getHeight());
                 draw(canvas, shadowPaint);
 
-                transitionDrawable = new NinePatchDrawable(bitmap, getByteBuffer(bitmap.getWidth() / 2 - 1, bitmap.getWidth() / 2 + 1, bitmap.getHeight() / 2 - 1, bitmap.getHeight() / 2 + 1).array(), new Rect(), null);
+                transitionDrawable = new NinePatchDrawable(bitmap, getByteBuffer(bitmap.getWidth() / 2 - 1, bitmap.getWidth() / 2 + 1, bitmap.getHeight() / 2 - 1, bitmap.getHeight() / 2 + 1, Color.WHITE).array(), new Rect(), null);
                 setBounds(backupRect);
             }
             if (transitionDrawableColor != color) {
@@ -646,7 +640,9 @@ public class Theme {
                     }
                     draw(canvas, shadowPaint);
 
+                    int centralColorHint = NinePatchBuilder.NO_COLOR;
                     if (AndroidUtilities.density > 1) {
+                        centralColorHint = NinePatchBuilder.TRANSPARENT_COLOR;
                         shadowPaint.setColor(0);
                         shadowPaint.setShadowLayer(0, 0, 0, 0);
                         shadowPaint.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
@@ -655,7 +651,7 @@ public class Theme {
                     }
 
                     shadowDrawableBitmap[idx] = bitmap;
-                    shadowDrawable[idx] = new NinePatchDrawable(bitmap, getByteBuffer(bitmap.getWidth() / 2 - 1, bitmap.getWidth() / 2 + 1, bitmap.getHeight() / 2 - 1, bitmap.getHeight() / 2 + 1).array(), new Rect(), null);
+                    shadowDrawable[idx] = new NinePatchDrawable(bitmap, getByteBuffer(bitmap.getWidth() / 2 - 1, bitmap.getWidth() / 2 + 1, bitmap.getHeight() / 2 - 1, bitmap.getHeight() / 2 + 1, centralColorHint).array(), new Rect(), null);
                     forceSetColor = true;
                 } catch (Throwable ignore) {
 
@@ -683,42 +679,8 @@ public class Theme {
             Arrays.fill(currentShadowDrawableRadius, -1);
         }
 
-        private static ByteBuffer getByteBuffer(int x1, int x2, int y1, int y2) {
-            // return NinePatchBuilder.createNinePatchChunk(x1, x2, y1, y2, 0, 0, 0, 0);
-
-            ByteBuffer buffer = ByteBuffer.allocate(4 + 4 * 7 + 4 * 2 + 4 * 2 + 4 * 9).order(ByteOrder.nativeOrder());
-            buffer.put((byte) 0x01);
-            buffer.put((byte) 2);
-            buffer.put((byte) 2);
-            buffer.put((byte) 0x09);
-
-            buffer.putInt(0);
-            buffer.putInt(0);
-
-            buffer.putInt(0);
-            buffer.putInt(0);
-            buffer.putInt(0);
-            buffer.putInt(0);
-
-            buffer.putInt(0);
-
-            buffer.putInt(x1);
-            buffer.putInt(x2);
-
-            buffer.putInt(y1);
-            buffer.putInt(y2);
-
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-            buffer.putInt(0x00000001);
-
-            return buffer;
+        private static ByteBuffer getByteBuffer(int x1, int x2, int y1, int y2, int centralColorHint) {
+            return NinePatchBuilder.createNinePatchChunk(x1, x2, y1, y2, 0, 0, 0, 0, centralColorHint);
         }
 
         public void drawCached(Canvas canvas, PathDrawParams patchDrawCacheParams, Paint paintToUse) {
@@ -1305,7 +1267,7 @@ public class Theme {
                     int w = Math.min(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y);
                     int h = Math.max(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y);
                     if (svg) {
-                        patternBitmap = SvgHelper.getBitmap(patternPath, w, h, false);
+                        patternBitmap = SvgHelper.getBitmap(patternPath, w, h, false, SvgHelper.ScaleMode.ByWidth);
                     } else {
                         patternBitmap = loadScreenSizedBitmap(new FileInputStream(patternPath), 0);
                     }
@@ -2046,6 +2008,10 @@ public class Theme {
             AndroidUtilities.lerp(Color.alpha(color1), Color.alpha(color2), .85f),
             tempHSV
         );
+    }
+
+    public static int capAlpha(int color, float maxAlpha) {
+        return ColorUtils.setAlphaComponent(color, MathUtils.clamp(Color.alpha(color), 0, (int) (0xFF * maxAlpha)));
     }
 
     public static int multAlpha(int color, float multiply) {
@@ -3149,7 +3115,6 @@ public class Theme {
     public static Paint dialogs_errorPaint;
     public static Paint dialogs_countGrayPaint;
     public static Paint dialogs_actionMessagePaint;
-    public static Paint dialogs_reactionsCountPaint;
     public static Paint dialogs_tagPaint;
     public static TextPaint[] dialogs_namePaint;
     public static TextPaint[] dialogs_nameEncryptedPaint;
@@ -3168,6 +3133,8 @@ public class Theme {
     public static TextPaint dialogs_onlinePaint;
     public static TextPaint dialogs_offlinePaint;
     public static TextPaint dialogs_tagTextPaint;
+
+    public static Drawable dialogs_communityCardsDrawable;
     public static Drawable dialogs_checkDrawable;
     public static Drawable dialogs_playDrawable;
     public static Drawable dialogs_checkReadDrawable;
@@ -3179,6 +3146,7 @@ public class Theme {
     public static Drawable dialogs_lock2Drawable;
     public static Drawable dialogs_muteDrawable;
     public static Drawable dialogs_unmuteDrawable;
+    public static Drawable dialogs_hiddenDrawable;
     public static Drawable dialogs_verifiedDrawable;
     public static ScamDrawable dialogs_scamDrawable;
     public static ScamDrawable dialogs_fakeDrawable;
@@ -3188,6 +3156,10 @@ public class Theme {
     public static Drawable dialogs_pinnedDrawable2Accent;
     public static Drawable dialogs_mentionDrawable;
     public static Drawable dialogs_reactionsMentionDrawable;
+    public static Drawable dialogs_pollMentionDrawable;
+    public static Drawable dialogs_mentionDrawableMuted;
+    public static Drawable dialogs_reactionsMentionDrawableMuted;
+    public static Drawable dialogs_pollMentionDrawableMuted;
     public static Drawable dialogs_holidayDrawable;
     public static Drawable dialogs_forum_arrowDrawable;
     public static RLottieDrawable dialogs_archiveAvatarDrawable;
@@ -3207,6 +3179,7 @@ public class Theme {
     public static RLottieDrawable dialogs_swipeMuteDrawable;
     public static RLottieDrawable dialogs_swipeUnmuteDrawable;
     public static RLottieDrawable dialogs_swipeDeleteDrawable;
+    public static RLottieDrawable dialogs_swipeCommunityUngroup;
     public static RLottieDrawable dialogs_swipeReadDrawable;
     public static RLottieDrawable dialogs_swipeUnreadDrawable;
     public static RLottieDrawable dialogs_swipePinDrawable;
@@ -3274,11 +3247,13 @@ public class Theme {
     public static TextPaint chat_contactPhonePaint;
     public static TextPaint chat_timePaint;
     public static TextPaint chat_adminPaint;
+    public static TextPaint chat_ephemeralPaint;
     public static TextPaint chat_namePaint;
     public static TextPaint chat_forwardNamePaint;
     public static TextPaint chat_replyNamePaint;
     public static TextPaint chat_replyTextPaint;
     public static TextPaint chat_quoteTextPaint;
+    public static TextPaint chat_explanationTextPaint;
     public static TextPaint chat_titleLabelTextPaint;
     public static TextPaint chat_topicTextPaint;
     public static TextPaint chat_commentTextPaint;
@@ -3290,6 +3265,7 @@ public class Theme {
     public static Drawable chat_composeShadowDrawable;
     public static Drawable chat_composeShadowRoundDrawable;
     public static Drawable chat_roundVideoShadow;
+    public static Drawable chat_livePhoto;
     public static MessageDrawable chat_msgInDrawable;
     public static MessageDrawable chat_msgInSelectedDrawable;
     public static MessageDrawable chat_msgOutDrawable;
@@ -3515,6 +3491,7 @@ public class Theme {
     public static final int key_fastScrollActive = colorsCount++;
     public static final int key_fastScrollInactive = colorsCount++;
     public static final int key_fastScrollText = colorsCount++;
+    public static final int key_pollCreateIcons = colorsCount++;
 
     public static final int key_text_RedRegular = colorsCount++;
     public static final int key_text_RedBold = colorsCount++;
@@ -4460,6 +4437,7 @@ public class Theme {
         fallbackKeys.put(key_chat_outPollWrongAnswer, key_chat_attachAudioBackground);
         fallbackKeys.put(key_chat_editMediaButton, key_dialogFloatingButton);
         fallbackKeys.put(key_chat_attachCheckBoxBackground, key_dialogRoundCheckBox);
+        fallbackKeys.put(key_pollCreateIcons, key_windowBackgroundWhiteGrayIcon);
 
         fallbackKeys.put(key_profile_tabText, key_windowBackgroundWhiteGrayText);
         fallbackKeys.put(key_profile_tabSelectedText, key_windowBackgroundWhiteBlueHeader);
@@ -6196,8 +6174,8 @@ public class Theme {
         maskPaint.setColor(0xffffffff);
         Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
         ColorStateList colorStateList = new ColorStateList(
-                new int[][]{StateSet.WILD_CARD},
-                new int[]{color}
+            new int[][] { StateSet.WILD_CARD },
+            new int[] { color }
         );
         return new BaseCell.RippleDrawableSafe(colorStateList, null, maskDrawable);
     }
@@ -6206,8 +6184,8 @@ public class Theme {
         maskPaint.setColor(0xffffffff);
         Drawable maskDrawable = new RippleRadMaskDrawable(topRad, bottomRad);
         ColorStateList colorStateList = new ColorStateList(
-                new int[][]{StateSet.WILD_CARD},
-                new int[]{rippleColor}
+            new int[][] { StateSet.WILD_CARD },
+            new int[] { rippleColor }
         );
         return new BaseCell.RippleDrawableSafe(colorStateList, createRoundRectDrawable(dp(topRad), dp(bottomRad), color), maskDrawable);
     }
@@ -7320,11 +7298,15 @@ public class Theme {
                 switchingNightTheme = false;
             }
         } else {
-            if (currentTheme != currentDayTheme && (currentTheme == null || currentDayTheme != null && currentTheme.isDark() != currentDayTheme.isDark())) {
+            ThemeInfo dayTheme = currentDayTheme;
+            if (dayTheme != null && dayTheme.isDark() && selectedAutoNightType != AUTO_NIGHT_TYPE_NONE && defaultTheme != null) {
+                dayTheme = defaultTheme;
+            }
+            if (currentTheme != dayTheme && (currentTheme == null || dayTheme != null && currentTheme.isDark() != dayTheme.isDark())) {
                 isInNigthMode = false;
                 lastThemeSwitchTime = SystemClock.elapsedRealtime();
                 switchingNightTheme = true;
-                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, currentDayTheme, true, null, -1);
+                NotificationCenter.getGlobalInstance().postNotificationName(NotificationCenter.needSetDayNightTheme, dayTheme, true, null, -1);
                 switchingNightTheme = false;
             }
         }
@@ -8389,6 +8371,7 @@ public class Theme {
             dialogs_swipeDeleteDrawable = new RLottieDrawable(R.raw.swipe_delete, "swipe_delete", dp(36), dp(36), false, null);
             dialogs_swipeUnpinDrawable = new RLottieDrawable(R.raw.swipe_unpin, "swipe_unpin", dp(36), dp(36), false, null);
             dialogs_swipePinDrawable = new RLottieDrawable(R.raw.swipe_pin, "swipe_pin", dp(36), dp(36), false, null);
+            dialogs_swipeCommunityUngroup = new RLottieDrawable(R.raw.swipe_community_ungroup, "swipe_community_ungroup", dp(28), dp(28), false, null);
 
             applyCommonTheme();
         }
@@ -8460,7 +8443,6 @@ public class Theme {
             dialogs_countTextPaint2 = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             dialogs_countTextPaint2.setTypeface(AndroidUtilities.bold());
             dialogs_countPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-            dialogs_reactionsCountPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_onlineCirclePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
             dialogs_tagPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         }
@@ -8514,6 +8496,7 @@ public class Theme {
             dialogs_lockDrawable = resources.getDrawable(R.drawable.list_secret);
             dialogs_lock2Drawable = resources.getDrawable(R.drawable.msg_mini_lock2);
             dialogs_checkDrawable = resources.getDrawable(R.drawable.list_check).mutate();
+            dialogs_communityCardsDrawable = resources.getDrawable(R.drawable.community_cards).mutate();
             dialogs_playDrawable = resources.getDrawable(R.drawable.minithumb_play).mutate();
             dialogs_checkReadDrawable = resources.getDrawable(R.drawable.list_check).mutate();
             dialogs_halfCheckDrawable = resources.getDrawable(R.drawable.list_halfcheck);
@@ -8522,12 +8505,20 @@ public class Theme {
             dialogs_reorderDrawable = resources.getDrawable(R.drawable.list_reorder).mutate();
             dialogs_muteDrawable = resources.getDrawable(R.drawable.list_mute).mutate();
             dialogs_unmuteDrawable = resources.getDrawable(R.drawable.list_unmute).mutate();
+            dialogs_hiddenDrawable = resources.getDrawable(R.drawable.mini_ephemeral_hidden_16).mutate();
             dialogs_verifiedDrawable = resources.getDrawable(R.drawable.verified_area).mutate();
             dialogs_scamDrawable = new ScamDrawable(11, 0);
             dialogs_fakeDrawable = new ScamDrawable(11, 1);
             dialogs_verifiedCheckDrawable = resources.getDrawable(R.drawable.verified_check).mutate();
-            dialogs_mentionDrawable = resources.getDrawable(R.drawable.mini_mention_filled_16);
-            dialogs_reactionsMentionDrawable = resources.getDrawable(R.drawable.mini_like_filled_16);
+
+            dialogs_mentionDrawable = resources.getDrawable(R.drawable.filled_chatlist_mention).mutate();
+            dialogs_reactionsMentionDrawable = resources.getDrawable(R.drawable.filled_chatlist_reaction).mutate();
+            dialogs_pollMentionDrawable = resources.getDrawable(R.drawable.filled_chatlist_poll).mutate();
+
+            dialogs_mentionDrawableMuted = resources.getDrawable(R.drawable.filled_chatlist_mention).mutate();
+            dialogs_reactionsMentionDrawableMuted = resources.getDrawable(R.drawable.filled_chatlist_reaction).mutate();
+            dialogs_pollMentionDrawableMuted = resources.getDrawable(R.drawable.filled_chatlist_poll).mutate();
+
             dialogs_pinnedDrawable = resources.getDrawable(R.drawable.list_pin);
             dialogs_pinnedDrawable2 = resources.getDrawable(R.drawable.msg_pin_mini).mutate();
             dialogs_pinnedDrawable2Accent = resources.getDrawable(R.drawable.msg_pin_mini).mutate();
@@ -8594,7 +8585,6 @@ public class Theme {
         dialogs_archiveTextPaint.setColor(getColor(key_chats_archiveText));
         dialogs_archiveTextPaintSmall.setColor(getColor(key_chats_archiveText));
         dialogs_countPaint.setColor(getColor(key_chats_unreadCounter));
-        dialogs_reactionsCountPaint.setColor(getColor(key_dialogReactionMentionBackground));
         dialogs_countGrayPaint.setColor(getColor(key_chats_unreadCounterMuted));
         dialogs_actionMessagePaint.setColor(getColor(key_chats_actionMessage));
         dialogs_errorPaint.setColor(getColor(key_chats_sentError));
@@ -8604,6 +8594,7 @@ public class Theme {
         setDrawableColorByKey(dialogs_lockDrawable, key_chats_secretIcon);
         setDrawableColorByKey(dialogs_lock2Drawable, key_chats_pinnedIcon);
         setDrawableColorByKey(dialogs_checkDrawable, key_chats_sentCheck);
+        setDrawableColorByKey(dialogs_communityCardsDrawable, key_windowBackgroundWhiteBlackText);
         setDrawableColorByKey(dialogs_checkReadDrawable, key_chats_sentReadCheck);
         setDrawableColorByKey(dialogs_halfCheckDrawable, key_chats_sentReadCheck);
         setDrawableColorByKey(dialogs_clockDrawable, key_chats_sentClock);
@@ -8614,9 +8605,17 @@ public class Theme {
         setDrawableColorByKey(dialogs_reorderDrawable, key_chats_pinnedIcon);
         setDrawableColorByKey(dialogs_muteDrawable, key_chats_muteIcon);
         setDrawableColorByKey(dialogs_unmuteDrawable, key_chats_muteIcon);
-        setDrawableColorByKey(dialogs_mentionDrawable, key_chats_mentionIcon);
+        setDrawableColorByKey(dialogs_hiddenDrawable, key_chats_muteIcon);
+
+        setDrawableColorByKey(dialogs_mentionDrawable, key_chats_unreadCounter);
+        setDrawableColorByKey(dialogs_reactionsMentionDrawable, key_dialogReactionMentionBackground);
+        setDrawableColorByKey(dialogs_pollMentionDrawable, key_color_purple);
+
+        setDrawableColorByKey(dialogs_mentionDrawableMuted, key_chats_unreadCounterMuted);
+        setDrawableColorByKey(dialogs_reactionsMentionDrawableMuted, key_chats_unreadCounterMuted);
+        setDrawableColorByKey(dialogs_pollMentionDrawableMuted, key_chats_unreadCounterMuted);
+
         setDrawableColorByKey(dialogs_forum_arrowDrawable, key_chats_message);
-        setDrawableColorByKey(dialogs_reactionsMentionDrawable, key_chats_mentionIcon);
         setDrawableColorByKey(dialogs_verifiedDrawable, key_chats_verifiedBackground);
         setDrawableColorByKey(dialogs_verifiedCheckDrawable, key_chats_verifiedCheck);
         setDrawableColorByKey(dialogs_holidayDrawable, key_actionBarDefaultTitle);
@@ -8662,6 +8661,7 @@ public class Theme {
                 chat_replyNamePaint.setTypeface(AndroidUtilities.bold());
                 chat_replyTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
                 chat_quoteTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
+                chat_explanationTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
                 chat_titleLabelTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
                 chat_topicTextPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
                 chat_topicTextPaint.setTypeface(AndroidUtilities.bold());
@@ -8675,6 +8675,7 @@ public class Theme {
                 chat_msgTextCode3Paint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
                 chat_msgTextCode3Paint.setTypeface(Typeface.MONOSPACE);
                 chat_msgCodeBgPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
+                chat_ephemeralPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             }
 
             final float[] emojiSizePercents = new float[] {.68f, .46f, .34f, .28f, .22f, .19f};
@@ -8693,6 +8694,8 @@ public class Theme {
             chat_replyNamePaint.setTextSize(dp(smallerDp));
             chat_replyTextPaint.setTextSize(dp(smallerDp));
             chat_quoteTextPaint.setTextSize(dp(smallerDp - 1));
+            chat_explanationTextPaint.setTextSize(dp(smallerDp));
+            chat_ephemeralPaint.setTextSize(dp(12));
             chat_topicTextPaint.setTextSize(dp(smallerDp - 1));
             chat_titleLabelTextPaint.setTextSize(dp(smallerDp - 2));
             chat_forwardNamePaint.setTextSize(dp(smallerDp));
@@ -8751,6 +8754,7 @@ public class Theme {
             chat_shipmentPaint = new TextPaint(Paint.ANTI_ALIAS_FLAG);
             chat_timePaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             chat_adminPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
+            chat_ephemeralPaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             chat_namePaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
             chat_namePaint.setTypeface(AndroidUtilities.bold());
             chat_forwardNamePaint = new TextPaint(TextPaint.ANTI_ALIAS_FLAG);
@@ -8818,6 +8822,7 @@ public class Theme {
             Resources resources = context.getResources();
 
             chat_msgNoSoundDrawable = resources.getDrawable(R.drawable.video_muted);
+            chat_livePhoto = resources.getDrawable(R.drawable.media_live_on).mutate();
 
             chat_msgInDrawable = new MessageDrawable(MessageDrawable.TYPE_TEXT, false, false);
             chat_msgInSelectedDrawable = new MessageDrawable(MessageDrawable.TYPE_TEXT, false, true);
@@ -9058,6 +9063,7 @@ public class Theme {
             chat_topicTextPaint.setTextSize(dp(smallerDp - 1));
             chat_forwardNamePaint.setTextSize(dp(smallerDp));
             chat_adminPaint.setTextSize(dp(smallerDp - 1));
+            chat_ephemeralPaint.setTextSize(dp(12));
             float timeDp = 2 * (SharedConfig.fontSize - 16) / 3f + 12;
             chat_timePaint.setTextSize(dp(12));
             chat_gamePaint.setTextSize(dp(13));
@@ -9460,7 +9466,7 @@ public class Theme {
         d.setColorFilter(new ColorMatrixColorFilter(colorMatrix));
         d.draw(new Canvas(bitmap));
         d.setColorFilter(wasColorFilter);
-        Utilities.blurBitmap(bitmap, 3, 1, bitmap.getWidth(), bitmap.getHeight(), bitmap.getRowBytes());
+        Utilities.blurBitmap(bitmap, 3);
         return blurredBitmap = bitmap;
     }
 
@@ -10092,11 +10098,14 @@ public class Theme {
                     Bitmap patternBitmap = null;
 
                     if (wallpaperFile != null) {
+                        final int w = Math.min(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y);
+                        final int h = Math.max(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y);
+
                         if (wallpaperDocument != null) {
                             File f = FileLoader.getInstance(UserConfig.selectedAccount).getPathToAttach(wallpaperDocument, true);
-                            patternBitmap = SvgHelper.getBitmap(f, dp(360), dp(640), false);
+                            patternBitmap = SvgHelper.getBitmap(f, w, h, false, SvgHelper.ScaleMode.ByWidth);
                         } else {
-                            patternBitmap = SvgHelper.getBitmap(R.raw.default_pattern, dp(360), dp(640), Color.WHITE);
+                            patternBitmap = SvgHelper.getBitmap(R.raw.default_pattern, w, h, Color.WHITE, 1f, SvgHelper.ScaleMode.ByWidth);
                         }
                         if (patternBitmap != null) {
                             FileOutputStream stream = null;
@@ -10270,7 +10279,7 @@ public class Theme {
             w = Math.min(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y);
             h = Math.max(AndroidUtilities.displaySize.x, AndroidUtilities.displaySize.y);
         }
-        motionBackgroundDrawable.setPatternBitmap(34, SvgHelper.getBitmap(R.raw.default_pattern, w, h, Color.BLACK));
+        motionBackgroundDrawable.setPatternBitmap(34, SvgHelper.getBitmap(R.raw.default_pattern, w, h, Color.BLACK, 1f, SvgHelper.ScaleMode.ByWidth));
         motionBackgroundDrawable.setPatternColorFilter(motionBackgroundDrawable.getPatternColor());
         return motionBackgroundDrawable;
     }
@@ -10608,6 +10617,11 @@ public class Theme {
         return defaultChatDrawables.get(drawableKey);
     }
 
+    public static Drawable getThemeDrawable(String key, Theme.ResourcesProvider resourcesProvider) {
+        Drawable drawable = resourcesProvider != null ? resourcesProvider.getDrawable(key) : null;
+        return drawable != null ? drawable : defaultChatDrawables.get(key);
+    }
+
     public static int getThemeDrawableColorKey(String drawableKey) {
         return defaultChatDrawableColorKeys.get(drawableKey);
     }
@@ -10704,15 +10718,28 @@ public class Theme {
 
     public interface Colorable {
         public void updateColors();
+        public default int[] getColorKeys() { return null; }
     }
 
-    public static Paint PAINT_CLEAR = new Paint(Paint.ANTI_ALIAS_FLAG); static {
+    private static final Paint PAINT_FILLING = new Paint(Paint.ANTI_ALIAS_FLAG);
+    public static final Paint PAINT_CLEAR = new Paint(Paint.ANTI_ALIAS_FLAG); static {
         PAINT_CLEAR.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.CLEAR));
     }
+
+    public static Paint fillingPaint(int color) {
+        if (PAINT_FILLING.getColor() != color) {
+            PAINT_FILLING.setColor(color);
+        }
+        return PAINT_FILLING;
+    }
+
+
+    /* DEBUG */
 
     public static Paint DEBUG_RED = new Paint(); static { DEBUG_RED.setColor(0xffff0000); }
     public static Paint DEBUG_BLUE = new Paint(); static { DEBUG_BLUE.setColor(0xff0000ff); }
     public static Paint DEBUG_GREEN_40 = new Paint(); static { DEBUG_GREEN_40.setColor(0x4000FF00); }
+    public static Paint DEBUG_GREEN_B0 = new Paint(); static { DEBUG_GREEN_B0.setColor(0xB000FF00); }
     public static Paint DEBUG_RED_STROKE = new Paint(); static {
         DEBUG_RED_STROKE.setColor(0xffff0000);
         DEBUG_RED_STROKE.setStrokeWidth(2);

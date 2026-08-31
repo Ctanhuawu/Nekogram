@@ -14,7 +14,6 @@ TMessagesProj_App/afat/
 TMessagesProj_AppHockeyApp/afat/
 TMessagesProj_AppStandalone/afat/
 TMessagesProj_AppHuawei/afat/
-/TMessagesProj/src/main/java/tw/nekomimi/nekogram/Extra.java
 google-services.json
 sentry.properties
 release.keystore
@@ -22,3 +21,4 @@ release.keystore
 *.keystore
 *.hprof
 *.log
+TMessagesProj/jni/ffmpeg/build_android
