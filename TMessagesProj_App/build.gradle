@@ -67,7 +67,7 @@ android {
 
         multiDexEnabled true
 
-        manifestPlaceholders = [MAPS_API_KEY: localProperties.get("mapsApiKey")]
+        manifestPlaceholders = [MAPS_API_KEY: localProperties.getProperty("mapsApiKey", "")]
     }
 
     bundle {
@@ -77,7 +77,7 @@ android {
     }
 
     splits.abi {
-        var buildingBundle = gradle.startParameter.taskNames.any { it.startsWith("bundle") }
+        def buildingBundle = gradle.startParameter.taskNames.any { it.startsWith("bundle") }
         enable !buildingBundle
         universalApk false
 

@@ -4,6 +4,12 @@ plugins {
     id 'com.google.firebase.crashlytics' version '3.0.6' apply false
 }
 
+def localProperties = new Properties()
+def localPropertiesFile = rootProject.file('local.properties')
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+}
+
 subprojects {
     afterEvaluate {
         if (plugins.hasPlugin("com.android.library") ||
@@ -11,7 +17,7 @@ subprojects {
             android {
                 compileSdkVersion 37
                 buildToolsVersion "37.0.0"
-                ndkVersion "27.3.13750724"
+                ndkVersion (localProperties.getProperty("ndkVersion") ?: "27.3.13750724")
 
                 lint {
                     checkReleaseBuilds false

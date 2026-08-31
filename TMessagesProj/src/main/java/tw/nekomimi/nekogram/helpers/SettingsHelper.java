@@ -39,6 +39,7 @@ public class SettingsHelper {
         BaseNekoSettingsActivity fragment;
         if (segments.size() == 1) {
             fragment = new NekoSettingsActivity();
+        } else {
             var segment = segments.get(1);
             if (PasscodeHelper.getSettingsKey().equals(segment)) {
                 fragment = new NekoPasscodeSettingsActivity();
@@ -91,7 +92,8 @@ public class SettingsHelper {
         }
         if (!TextUtils.isEmpty(row)) {
             var rowFinal = row;
-            AndroidUtilities.runOnUIThread(() -> fragment.scrollToRow(rowFinal, unknown));
+            var targetFragment = fragment;
+            AndroidUtilities.runOnUIThread(() -> targetFragment.scrollToRow(rowFinal, unknown));
         }
     }
 
