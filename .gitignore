@@ -22,3 +22,4 @@ release.keystore
 *.hprof
 *.log
 TMessagesProj/jni/ffmpeg/build_android
+.vscode/
